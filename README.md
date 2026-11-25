@@ -16,17 +16,12 @@ tools/     make-icons.cjs (re-renders the PNG icons from site/icon.svg)
 ## One-time setup
 
 1. **Kroger app**: at developer.kroger.com create an app (Production) with the `product.compact` scope.
-2. **Worker**:
+2. **Worker**: put the Kroger ID and secret in `.env` (git-ignored) in this folder, then run
    ```sh
-   cd worker
-   npm install
-   npx wrangler login
-   npx wrangler deploy
-   npx wrangler secret put KROGER_CLIENT_ID      # paste when prompted
-   npx wrangler secret put KROGER_CLIENT_SECRET
+   node tools/deploy.mjs
    ```
-   Or add the two secrets in the Cloudflare dashboard: Workers & Pages → groceries-api → Settings → Variables and Secrets.
-   Put the Worker's URL in `API_DEFAULT` near the top of the script in `site/index.html`.
+   It logs in to Cloudflare if needed (opens a browser), deploys the Worker, pipes the two secrets in from `.env` without printing them, tests `/stores` and `/search` against the real Kroger API, writes the Worker URL into `API_DEFAULT` in `site/index.html`, and commits and pushes.
+   To re-test a Worker any time: `node tools/deploy.mjs --check https://groceries-api.<you>.workers.dev`.
 3. **GitHub Pages**: repo Settings → Pages → Source: **GitHub Actions**.
 4. If the site's address changes, update `ALLOWED_ORIGIN` in `worker/wrangler.toml` and redeploy.
 

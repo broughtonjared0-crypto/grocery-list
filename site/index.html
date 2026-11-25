@@ -294,6 +294,7 @@ function importJSON(file){
 const local=/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 const API=((local&&new URLSearchParams(location.search).get('api'))||API_DEFAULT).replace(/\/$/,'');
 async function api(path, params){
+  if(/REPLACE_ME/.test(API)) throw new Error('Kroger photos aren’t switched on yet: the Worker still needs deploying.');
   const ctl=new AbortController(), t=setTimeout(()=>ctl.abort(),15000);
   let r;
   try{ r=await fetch(API+path+'?'+new URLSearchParams(params),{signal:ctl.signal}); }
