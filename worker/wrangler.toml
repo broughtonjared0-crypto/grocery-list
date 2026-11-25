@@ -1,0 +1,13 @@
+name = "groceries-api"
+main = "src/index.js"
+compatibility_date = "2025-11-01"
+workers_dev = true
+preview_urls = false
+
+[vars]
+# Who may call the API from a browser. "*" stands for any port.
+ALLOWED_ORIGIN = "https://broughtonjared0-crypto.github.io,http://localhost:*,http://127.0.0.1:*"
+
+# Secrets (set once, never committed):
+#   wrangler secret put KROGER_CLIENT_ID
+#   wrangler secret put KROGER_CLIENT_SECRET

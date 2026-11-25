@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Groceries</title>
+<meta name="theme-color" content="#0e3b2c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Groceries">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script>try{var t=localStorage.getItem('grocery-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: cheerful, tactile, quick to use one-handed in an aisle
+   IDEA: a store shelf — each item is a little price-tag card with its own illustrated product
+   PICTURE: the list itself, every row carrying a drawn product (jug, loaf, jar, bag…)
+   COLOUR and TYPE: deep produce-crate green field, lemon support, tomato accent; Familjen Grotesk + DM Sans
+   LAYOUT: one phone column, green header with store + progress, sticky add bar, bottom tabs, bottom sheets */
+:root{color-scheme:light dark;
+--bg:light-dark(#f6f5ef,#0a1511);--card:light-dark(#fff,#12211b);--ink:light-dark(#11251c,#e9f2ed);
+--mute:light-dark(#5b6d64,#98b0a4);--line:light-dark(#e4e6dd,#21362c);--soft:light-dark(#eef1e8,#18291f);
+--green:light-dark(#0e3b2c,#0d2a1f);--lemon:#ffd23f;--tomato:#ff5436;--leaf:#2f9e6b}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "DM Sans",system-ui,sans-serif;overflow-x:clip}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input,select{font:inherit;font-size:16px;color:var(--ink)}
+:focus-visible{outline:3px solid var(--lemon);outline-offset:2px}
+h1,h2,h3{font-family:"Familjen Grotesk",sans-serif;margin:0;line-height:1.05;text-wrap:balance}
+.app{max-width:560px;margin:0 auto;padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+.top{background:var(--green);color:#f3fbf6;padding:calc(18px + env(safe-area-inset-top)) 18px 22px;border-radius:0 0 28px 28px;position:relative;overflow:hidden}
+.top>*{position:relative}.top svg.deco{position:absolute;right:-24px;top:-28px;width:150px;opacity:.13;pointer-events:none}
+.top h1{font-size:40px}
+.storeBtn{display:inline-flex;align-items:center;gap:8px;margin-top:10px;background:var(--lemon);color:#1d1a05;font-weight:700;padding:9px 14px;border-radius:999px;min-height:44px}
+.storeBtn small{font-weight:500;opacity:.7}
+.prog{margin-top:16px;display:flex;align-items:center;gap:12px}
+.bar{flex:1;height:10px;background:rgba(255,255,255,.16);border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--lemon);border-radius:99px;transition:width .4s}
+.prog b{font-size:15px;white-space:nowrap}
+.acts{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 16px;border-radius:999px;font-weight:700;font-size:15px}
+.pill svg{width:18px;height:18px}
+.p-light{background:rgba(255,255,255,.12);color:#fff}
+.p-tom{background:var(--tomato);color:#fff}
+.p-green{background:var(--green);color:#fff}
+.p-soft{background:var(--soft);color:var(--ink)}
+.p-lemon{background:var(--lemon);color:#1d1a05}
+.addbar{position:sticky;top:0;z-index:5;padding:12px 14px;background:linear-gradient(var(--bg) 80%,transparent)}
+.addrow{display:flex;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:6px;box-shadow:0 6px 18px rgba(10,40,25,.07)}
+.addrow input{flex:1;border:0;background:none;padding:8px 10px;outline:none}
+.addrow button{min-width:44px;min-height:44px;border-radius:13px;background:var(--tomato);color:#fff;font-weight:700;padding:0 14px}
+.sugs{display:flex;gap:6px;overflow-x:auto;padding:8px 2px 0;scrollbar-width:none}
+.sugs button{flex:none;background:var(--card);border:1px solid var(--line);border-radius:99px;padding:6px 12px;font-size:14px;min-height:36px}
+main{padding:0 14px}
+.sec{margin:18px 0 8px;display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.sec h2{font-size:20px}
+.sec span{color:var(--mute);font-size:14px}
+.row{display:grid;grid-template-columns:56px minmax(0,1fr) 40px 44px;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:8px 8px 8px 8px;margin-bottom:8px;transition:opacity .25s}
+.row .art{width:56px;height:56px}
+.row .body{text-align:left;padding:2px 0;min-height:44px}
+.row .nm{font-weight:700;font-size:16.5px;line-height:1.25;overflow-wrap:anywhere}
+.row .sub{font-size:13.5px;color:var(--mute);line-height:1.3;margin-top:2px}
+.tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+.tag{font-size:12.5px;font-weight:700;padding:1px 8px;border-radius:99px;background:var(--soft);color:var(--mute);white-space:nowrap}
+.tag.pick{background:color-mix(in srgb,var(--leaf) 18%,transparent);color:var(--leaf)}
+.tag.star{background:color-mix(in srgb,var(--tomato) 16%,transparent);color:var(--tomato)}
+.rm{width:40px;height:44px;border-radius:12px;display:grid;place-items:center;color:var(--mute)}.rm svg{width:20px;height:20px}.rm:hover,.rm:active{color:var(--tomato);background:color-mix(in srgb,var(--tomato) 10%,transparent)}
+.chk{width:44px;height:44px;border-radius:50%;border:2.5px solid var(--line);display:grid;place-items:center}
+.chk svg{width:22px;height:22px;opacity:0}
+.row.done{opacity:.6}.row.done .nm{text-decoration:line-through;text-decoration-thickness:2px}
+.row.done .chk{background:var(--leaf);border-color:var(--leaf);color:#fff}.row.done .chk svg{opacity:1}
+.row.done .chk{animation:pop .3s}
+@keyframes pop{50%{transform:scale(1.15)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.banner{background:color-mix(in srgb,var(--lemon) 30%,var(--card));border-radius:18px;padding:14px 16px;margin-top:14px;display:grid;gap:10px}
+.banner p{margin:0}
+.empty{text-align:center;padding:30px 10px;color:var(--mute)}
+.empty .art{width:110px;height:110px;margin:0 auto 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:14px;margin-bottom:10px}
+.mini{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 0}
+.mini .art{width:44px;height:44px}
+.mini .nm{font-weight:700;line-height:1.25}.mini .sub{font-size:13px;color:var(--mute);line-height:1.3}
+.plus{min-width:44px;min-height:44px;border-radius:14px;background:var(--soft);font-weight:700;padding:0 12px;white-space:nowrap;font-size:14px}
+.plus.on{color:var(--leaf)}
+.strip{display:flex;gap:2px;margin-top:8px;overflow:hidden}.strip .art{width:30px;height:30px;flex:none}
+.search{width:100%;border:1px solid var(--line);background:var(--card);border-radius:16px;padding:12px 14px;min-height:48px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.chips button{background:var(--card);border:1px solid var(--line);border-radius:99px;padding:6px 12px;min-height:38px;font-size:14px}
+.chips button[aria-pressed=true]{background:var(--green);color:#fff;border-color:var(--green)}
+details.cat{background:var(--card);border:1px solid var(--line);border-radius:20px;margin-bottom:10px;padding:4px 14px}
+details.cat summary{list-style:none;display:flex;align-items:center;gap:10px;min-height:52px;cursor:pointer;font-weight:700}
+details.cat summary::-webkit-details-marker{display:none}
+details.cat summary .art{width:34px;height:34px}
+details.cat summary span{margin-left:auto;color:var(--mute);font-weight:500;font-size:14px}
+.note{font-size:13px;color:var(--mute)}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:color-mix(in srgb,var(--card) 92%,transparent);backdrop-filter:blur(12px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs div{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
+nav.tabs button{min-height:62px;display:grid;place-items:center;gap:2px;font-size:12.5px;font-weight:700;color:var(--mute);padding:6px 0}
+nav.tabs button svg{width:24px;height:24px}
+nav.tabs button[aria-current=page]{color:var(--tomato)}
+.scrim{position:fixed;inset:0;background:rgba(5,20,12,.45);z-index:30;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:31;max-width:560px;margin:0 auto;background:var(--bg);border-radius:26px 26px 0 0;max-height:88vh;overflow:auto;transform:translateY(105%);transition:transform .28s cubic-bezier(.2,.8,.2,1);padding:10px 16px calc(24px + env(safe-area-inset-bottom))}
+.sheet.on{transform:none}
+.grab{width:44px;height:5px;border-radius:9px;background:var(--line);margin:0 auto 12px}
+.sheet h3{font-size:24px;margin-bottom:4px}
+.field{display:grid;gap:5px;margin:12px 0}.field label{font-size:14px;font-weight:700}
+.field input,.field select{border:1px solid var(--line);background:var(--card);border-radius:14px;padding:11px 12px;min-height:48px;width:100%}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.step{display:flex;align-items:center;border:1px solid var(--line);background:var(--card);border-radius:14px;min-height:48px}
+.step button{width:48px;height:46px;font-size:22px}.step b{flex:1;text-align:center}
+.vgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.v{background:var(--card);border:1.5px solid var(--line);border-radius:18px;padding:10px;text-align:left;display:grid;gap:6px;align-content:start}
+.v .art{width:64px;height:64px}
+.v .nm{font-weight:700;font-size:14.5px;line-height:1.25;overflow-wrap:anywhere}
+.v .sub{font-size:13px;color:var(--mute)}
+.v[aria-pressed=true]{border-color:var(--leaf);box-shadow:0 0 0 3px color-mix(in srgb,var(--leaf) 25%,transparent)}
+.skel{height:150px;border-radius:18px;background:linear-gradient(90deg,var(--soft),var(--card),var(--soft));background-size:200% 100%;animation:sh 1.2s infinite}
+@keyframes sh{to{background-position:-200% 0}}
+.err{background:color-mix(in srgb,var(--tomato) 12%,var(--card));border-radius:14px;padding:12px;font-size:14.5px;margin-top:12px}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.btnrow .pill{flex:1;justify-content:center}
+.toast{position:fixed;left:50%;bottom:calc(78px + env(safe-area-inset-bottom));transform:translate(-50%,20px);background:#10261c;color:#fff;border-radius:16px;padding:8px 8px 8px 16px;display:flex;gap:12px;align-items:center;z-index:40;opacity:0;pointer-events:none;transition:.2s;max-width:calc(100vw - 24px);font-size:15px}
+.toast.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast button{color:var(--lemon);font-weight:700;min-height:40px;padding:0 10px}
+.sync{font-size:12.5px;opacity:.75;margin-top:4px}
+a.link{color:var(--leaf);font-weight:700}
+.art.ph{display:block;background:#fff;border-radius:14px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(10,40,25,.08)}
+.art.ph img{display:block;width:100%;height:100%;object-fit:contain}
+.v .art{width:100%;height:auto;aspect-ratio:1}
+.v .brand{font-size:12.5px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:.03em;line-height:1.2}
+.price{font-weight:700;font-size:15px}.price s{color:var(--mute);font-weight:500;font-size:13px;margin-left:4px}.price .sale{color:var(--tomato)}
+.gear{position:absolute!important;z-index:2;right:12px;top:calc(12px + env(safe-area-inset-top));width:44px;height:44px;border-radius:50%;display:grid;place-items:center;color:#f3fbf6;background:rgba(255,255,255,.12)}.gear svg{width:22px;height:22px}
+.locs{display:grid;gap:8px;margin-top:10px}
+.loc{background:var(--card);border:1.5px solid var(--line);border-radius:16px;padding:10px 12px;text-align:left;min-height:52px}
+a.pill{text-decoration:none}
+.loc b{display:block;line-height:1.25}.loc span{font-size:13px;color:var(--mute)}
+.loc[aria-pressed=true]{border-color:var(--leaf);box-shadow:0 0 0 3px color-mix(in srgb,var(--leaf) 25%,transparent)}
+.zipf{display:flex;gap:8px;margin-top:12px}.zipf input{flex:1;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:11px 12px;min-height:48px}
+.list-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.sheet h4{font-family:"Familjen Grotesk",sans-serif;font-size:18px;margin:18px 0 4px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top" id="top"></header>
+  <div id="view"></div>
+</div>
+<nav class="tabs" aria-label="Sections"><div id="tabs"></div></nav>
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+<div class="toast" id="toast" role="status"><span id="tmsg"></span><button id="tundo">Undo</button></div>
+
+<script>
+{
+// The Cloudflare Worker that talks to Kroger (no keys live in this page).
+const API_DEFAULT = 'https://groceries-api.REPLACE_ME.workers.dev';
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Math.random().toString(36).slice(2,10);
+const key = n => String(n).toLowerCase().replace(/\s+/g,' ').trim();
+const today = () => new Date().toISOString().slice(0,10);
+const fmtD = d => d ? new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+
+/* ---------- categories ---------- */
+const CATS = [
+ ['produce','Produce',/green onion|onion|banana|apple|lettuce|tomato|potato|lemon|strawberr|grape(?! jelly)|avocado|carrot/],
+ ['frozen','Frozen',/frozen|french bread pizza|pizza|fries|tv dinner|texas toast|meatball|hash brown|ice cream/],
+ ['meat','Meat & deli',/chicken|bacon|beef|turkey|sausage|ham\b|hot dog|pepperoni/],
+ ['breakfast','Breakfast',/breakfast|pancake|poptart|pop-tart|donut|cereal|syrup|waffle|muffin/],
+ ['dairy','Dairy & eggs',/milk|butter(?!.*peanut)|cheese|cheddar|parmesan|mozzarella|yogurt|cream|egg/],
+ ['bakery','Bakery & bread',/bread|nan\b|naan|tortilla|bagel|roll/],
+ ['snacks','Snacks',/chip|dorito|popcorn|pocky|cookie|cracker|candy|pretzel/],
+ ['drinks','Drinks',/tea\b|tea bag|coffee|soda|juice|water|drink/],
+ ['condiments','Sauces & spreads',/ranch|ketchup|mustard|mayo|salsa|bbq|dip|jelly|nutella|peanut butter|sauce/],
+ ['pantry','Pantry',/pasta|spaghetti|canned|mac and cheese|ramen|sugar|rice|flour|pepper|salt|seasoning|soup|bean/],
+ ['household','Household',/paper towel|trash|wipe|scrubber|cup|container|dish|foil|bag|plate|soap(?!.*body)|napkin/],
+ ['personal','Personal care',/body wash|toothpaste|toothbrush|shampoo|deodorant|floss|lotion/],
+ ['other','Other',/$^/]
+];
+const CATN = Object.fromEntries(CATS.map(c=>[c[0],c[1]]));
+const guessCat = t => { t=key(t); if(/cracked pepper|black pepper/.test(t)) return 'pantry'; if(/pasta sauce/.test(t)) return 'condiments'; for(const c of CATS) if(c[2].test(t)) return c[0]; return 'other'; };
+
+/* ---------- illustrations ---------- */
+const GLY = [
+ [/milk/,'jug'],[/bread|texas toast|loaf/,'loaf'],[/muffin/,'muffin'],[/donut|breakfast/,'donut'],[/pancake|poptart|cereal|tv dinner|mac and cheese|spaghetti|pasta(?! sauce)|tea bag|tea\b/,'box'],
+ [/pizza/,'pizza'],[/canned|soup|bean/,'can'],[/ranch|body wash|syrup|ketchup|bbq|dish soap|shampoo|parmesan/,'bottle'],
+ [/peanut butter|nutella|sauce|jelly|salsa|pepper/,'jar'],[/chip|dorito|fries|popcorn|sugar|rice|hash/,'bag'],[/paper towel/,'roll'],
+ [/cheese|cheddar|mozzarella/,'wedge'],[/chicken|turkey/,'drum'],[/bacon/,'bacon'],[/cup|ramen/,'cup'],[/toothpaste/,'tube'],
+ [/onion|scallion/,'stalk'],[/trash can/,'bin'],[/scrubber|sponge/,'sponge'],[/wipe/,'canister'],[/tortilla|nan\b|naan/,'flat'],
+ [/meatball/,'balls'],[/butter/,'stick'],[/pocky/,'sticks'],[/container|gallon/,'jug2'],[/egg/,'eggs']
+];
+const CATG = {produce:'stalk',frozen:'box',meat:'drum',breakfast:'donut',dairy:'jug',bakery:'loaf',snacks:'bag',drinks:'bottle',condiments:'jar',pantry:'can',household:'roll',personal:'tube',other:'bag'};
+const HUES = ['#ff5436','#2f7de1','#2f9e6b','#f28c28','#d63f7c','#ffb703','#0fa3b1','#e24e1b'];
+const hash = s => { let h=0; for(const c of String(s)) h=(h*31+c.charCodeAt(0))|0; return Math.abs(h); };
+const TINT = {produce:'#dff3e4',frozen:'#dcecfb',meat:'#fde2dc',breakfast:'#fff0c7',dairy:'#e3eefc',bakery:'#f8e8d3',snacks:'#ffe7cc',drinks:'#dff4f2',condiments:'#fbe4ee',pantry:'#efe9dc',household:'#e6ecef',personal:'#efe4fb',other:'#ececec'};
+function art(name, cat){
+  const t = key(name); let g = CATG[cat] || 'bag';
+  for (const [r,n] of GLY) if (r.test(t)) { g=n; break; }
+  const a = HUES[hash(t)%HUES.length], d='#1b2a22', w='#ffffff';
+  const S = {
+   jug:`<path d="M20 22h20l4 8v20a4 4 0 0 1-4 4H20a4 4 0 0 1-4-4V30z" fill="${w}" stroke="${d}" stroke-width="2"/><path d="M44 30h4a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4h-4" fill="none" stroke="${d}" stroke-width="2.5"/><rect x="23" y="15" width="14" height="7" rx="2" fill="${/whole/.test(t)?'#e5383b':a}"/><rect x="16" y="36" width="28" height="10" fill="${/whole/.test(t)?'#e5383b':a}"/>`,
+   jug2:`<path d="M18 22h24l3 8v20a4 4 0 0 1-4 4H19a4 4 0 0 1-4-4V30z" fill="#e9f6ff" stroke="${d}" stroke-width="2"/><rect x="24" y="15" width="12" height="7" rx="2" fill="${a}"/><path d="M15 40h30" stroke="${a}" stroke-width="3"/>`,
+   loaf:`<path d="M12 34c0-10 9-14 20-14s20 4 20 14v14a4 4 0 0 1-4 4H16a4 4 0 0 1-4-4z" fill="#e0a560" stroke="${d}" stroke-width="2"/><path d="M22 30l4-5M30 30l4-5M38 30l4-5" stroke="#9c5f22" stroke-width="2.5" stroke-linecap="round"/><path d="M14 40h36" stroke="#f3cd95" stroke-width="3"/>`,
+   muffin:`<path d="M18 36h28l-4 16H22z" fill="${a}" stroke="${d}" stroke-width="2"/><path d="M14 36c0-10 8-16 18-16s18 6 18 16z" fill="#a86b3c" stroke="${d}" stroke-width="2"/><circle cx="26" cy="28" r="2" fill="#3a2414"/><circle cx="35" cy="25" r="2" fill="#3a2414"/><circle cx="38" cy="31" r="2" fill="#3a2414"/>`,
+   donut:`<circle cx="32" cy="36" r="17" fill="#e6a35d" stroke="${d}" stroke-width="2"/><path d="M17 33c3-9 26-12 30 0 0 6-7 5-15 5s-15 1-15-5z" fill="${a}"/><circle cx="32" cy="36" r="5.5" fill="var(--card)" stroke="${d}" stroke-width="2"/><path d="M24 30l2 1M36 28l2-1M40 34l1 2M28 26l1-2" stroke="${w}" stroke-width="2" stroke-linecap="round"/>`,
+   box:`<rect x="17" y="12" width="30" height="42" rx="3" fill="${a}" stroke="${d}" stroke-width="2"/><rect x="21" y="22" width="22" height="16" rx="3" fill="${w}"/><circle cx="32" cy="30" r="5" fill="${a}" opacity=".7"/><rect x="21" y="43" width="14" height="3" rx="1.5" fill="${w}" opacity=".7"/>`,
+   pizza:`<path d="M14 18l36 6-22 30z" fill="#f6c453" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><path d="M14 18l36 6" stroke="#c97b2e" stroke-width="5" stroke-linecap="round"/><circle cx="30" cy="30" r="3.5" fill="#e5383b"/><circle cx="26" cy="40" r="3" fill="#e5383b"/><circle cx="38" cy="30" r="2.5" fill="#e5383b"/>`,
+   can:`<rect x="18" y="16" width="28" height="36" rx="3" fill="#cfd8dc" stroke="${d}" stroke-width="2"/><rect x="18" y="24" width="28" height="20" fill="${a}"/><ellipse cx="32" cy="16" rx="14" ry="3.5" fill="#eceff1" stroke="${d}" stroke-width="2"/><circle cx="32" cy="34" r="5" fill="${w}" opacity=".85"/>`,
+   bottle:`<rect x="27" y="10" width="10" height="8" rx="2" fill="${d}"/><path d="M26 18h12l4 8v24a4 4 0 0 1-4 4H26a4 4 0 0 1-4-4V26z" fill="${/ranch|body/.test(t)?'#fbfbf6':a}" stroke="${d}" stroke-width="2"/><rect x="22" y="32" width="20" height="12" fill="${/ranch|body/.test(t)?a:w}" opacity=".9"/>`,
+   jar:`<rect x="20" y="13" width="24" height="8" rx="2" fill="${a}" stroke="${d}" stroke-width="2"/><rect x="17" y="21" width="30" height="31" rx="6" fill="${/nutella/.test(t)?'#5b3a29':/peanut/.test(t)?'#c98b45':/sauce|salsa/.test(t)?'#c9302c':'#d9d1c4'}" stroke="${d}" stroke-width="2"/><rect x="20" y="29" width="24" height="13" rx="2" fill="${w}"/><rect x="24" y="33" width="16" height="2.5" fill="${a}"/>`,
+   bag:`<path d="M18 14h28l2 6-2 4 4 26a4 4 0 0 1-4 4H18a4 4 0 0 1-4-4l4-26-2-4z" fill="${/dorito|chip/.test(t)?'#e5383b':a}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><path d="M17 20h30" stroke="${d}" stroke-width="1.5" stroke-dasharray="2 2"/><path d="M24 40l8-10 8 10z" fill="#ffd23f" stroke="${d}" stroke-width="1.5"/>`,
+   roll:`<rect x="16" y="16" width="32" height="34" fill="${w}" stroke="${d}" stroke-width="2"/><ellipse cx="32" cy="16" rx="16" ry="5" fill="#f5f5f0" stroke="${d}" stroke-width="2"/><ellipse cx="32" cy="16" rx="4.5" ry="1.6" fill="#b08b5b"/><ellipse cx="32" cy="50" rx="16" ry="5" fill="${w}" stroke="${d}" stroke-width="2"/><path d="M16 30h32" stroke="${a}" stroke-width="5"/>`,
+   wedge:`<path d="M12 44l38-20v20z" fill="#ffc93c" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><path d="M12 44h38v8H12z" fill="#f4a90b" stroke="${d}" stroke-width="2"/><circle cx="36" cy="38" r="3" fill="#e69a00"/><circle cx="44" cy="33" r="2" fill="#e69a00"/><circle cx="28" cy="48" r="2" fill="#c97f00"/>`,
+   drum:`<path d="M30 14c10-2 19 6 17 16-1 8-9 12-17 12l-6 6" fill="#d98b3a" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><path d="M24 48l-6 6m3-9l-6 2m9 1l-2 6" stroke="${w}" stroke-width="5" stroke-linecap="round"/><path d="M24 48l-6 6m3-9l-6 2m9 1l-2 6" stroke="${d}" stroke-width="1.2" stroke-linecap="round" opacity=".4"/><path d="M28 20c6-2 10 2 9 6" stroke="#f3c08a" stroke-width="3" fill="none" stroke-linecap="round"/>`,
+   bacon:`<path d="M12 22c8-6 12 6 20 0s12 6 20 0v8c-8 6-12-6-20 0s-12-6-20 0z" fill="#e05a47" stroke="${d}" stroke-width="2"/><path d="M12 38c8-6 12 6 20 0s12 6 20 0v8c-8 6-12-6-20 0s-12-6-20 0z" fill="#e05a47" stroke="${d}" stroke-width="2"/><path d="M14 27c7-4 11 4 18 0s11 4 18 0M14 43c7-4 11 4 18 0s11 4 18 0" stroke="#ffd7c9" stroke-width="2" fill="none"/>`,
+   cup:`<path d="M16 18h32l-4 34a3 3 0 0 1-3 3H23a3 3 0 0 1-3-3z" fill="${/plastic|cup/.test(t)&&!/ramen/.test(t)?'#e5383b':w}" stroke="${d}" stroke-width="2"/><rect x="14" y="14" width="36" height="6" rx="3" fill="${/ramen/.test(t)?a:'#fff'}" stroke="${d}" stroke-width="2"/><path d="M19 32h26" stroke="${/ramen/.test(t)?a:'#fff'}" stroke-width="5" opacity=".9"/>`,
+   tube:`<path d="M14 26h30l8-4v20l-8-4H14z" fill="${w}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><rect x="8" y="27" width="7" height="10" rx="2" fill="${a}" stroke="${d}" stroke-width="2"/><path d="M20 30h18" stroke="${a}" stroke-width="4" stroke-linecap="round"/><path d="M20 35h12" stroke="#2f7de1" stroke-width="3" stroke-linecap="round"/>`,
+   stalk:`<path d="M22 54V24M30 54V14M38 54V20M44 54V28" stroke="#3fae5a" stroke-width="5" stroke-linecap="round"/><path d="M22 54v-8M30 54v-8M38 54v-8M44 54v-8" stroke="#f4f7ef" stroke-width="6" stroke-linecap="round"/><path d="M18 46h30" stroke="${a}" stroke-width="3"/>`,
+   bin:`<path d="M18 22h28l-3 30a3 3 0 0 1-3 3H24a3 3 0 0 1-3-3z" fill="#6c7a80" stroke="${d}" stroke-width="2"/><rect x="14" y="16" width="36" height="6" rx="3" fill="#4d5a5f" stroke="${d}" stroke-width="2"/><rect x="28" y="12" width="8" height="4" rx="2" fill="${d}"/><path d="M26 28v20M32 28v20M38 28v20" stroke="#8c9aa0" stroke-width="2.5"/>`,
+   sponge:`<rect x="12" y="24" width="40" height="14" rx="4" fill="#ffd23f" stroke="${d}" stroke-width="2"/><rect x="12" y="38" width="40" height="10" rx="4" fill="#2f9e6b" stroke="${d}" stroke-width="2"/><circle cx="22" cy="31" r="2" fill="#e0b000"/><circle cx="34" cy="29" r="1.6" fill="#e0b000"/><circle cx="43" cy="32" r="2" fill="#e0b000"/>`,
+   canister:`<rect x="18" y="18" width="28" height="36" rx="5" fill="${a}" stroke="${d}" stroke-width="2"/><rect x="16" y="12" width="32" height="8" rx="4" fill="${w}" stroke="${d}" stroke-width="2"/><path d="M30 12c0-6 6-6 6-2" stroke="${d}" stroke-width="2" fill="#fff"/><rect x="22" y="30" width="20" height="10" rx="2" fill="${w}"/>`,
+   flat:`<ellipse cx="32" cy="44" rx="20" ry="7" fill="#e8c98f" stroke="${d}" stroke-width="2"/><ellipse cx="32" cy="38" rx="20" ry="7" fill="#f1d9a7" stroke="${d}" stroke-width="2"/><ellipse cx="32" cy="32" rx="20" ry="7" fill="#f7e6c2" stroke="${d}" stroke-width="2"/><circle cx="26" cy="31" r="1.5" fill="#c99a52"/><circle cx="37" cy="33" r="1.5" fill="#c99a52"/>`,
+   balls:`<ellipse cx="32" cy="48" rx="20" ry="5" fill="#f1f1ea" stroke="${d}" stroke-width="2"/><circle cx="24" cy="38" r="8" fill="#8b4a2b" stroke="${d}" stroke-width="2"/><circle cx="40" cy="38" r="8" fill="#9a5432" stroke="${d}" stroke-width="2"/><circle cx="32" cy="28" r="8" fill="#a35d38" stroke="${d}" stroke-width="2"/><circle cx="30" cy="25" r="2" fill="#d08a5e"/>`,
+   stick:`<path d="M10 32l30-10 14 6-30 10z" fill="#fff3b0" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><path d="M10 32v10l14 6V38z" fill="#ffe47a" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><path d="M24 38v10l30-10V28z" fill="#ffec99" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><path d="M30 40l18-6" stroke="${a}" stroke-width="3"/>`,
+   sticks:`<rect x="18" y="12" width="28" height="42" rx="3" fill="#e5383b" stroke="${d}" stroke-width="2"/><path d="M24 30V8M30 30V6M36 30V8M42 30V10" stroke="#e8c58f" stroke-width="3" stroke-linecap="round"/><path d="M24 18V8M30 18V6M36 18V8M42 18V10" stroke="#5b3a29" stroke-width="3.4" stroke-linecap="round"/><rect x="18" y="26" width="28" height="28" rx="3" fill="#e5383b" stroke="${d}" stroke-width="2"/><rect x="22" y="34" width="20" height="6" rx="2" fill="${w}"/>`,
+   eggs:`<rect x="10" y="38" width="44" height="12" rx="4" fill="#d8c9ad" stroke="${d}" stroke-width="2"/><ellipse cx="20" cy="34" rx="7" ry="9" fill="#fff7ea" stroke="${d}" stroke-width="2"/><ellipse cx="32" cy="32" rx="7" ry="9" fill="#fff" stroke="${d}" stroke-width="2"/><ellipse cx="44" cy="34" rx="7" ry="9" fill="#f6e3c8" stroke="${d}" stroke-width="2"/>`
+  };
+  return `<svg class="art" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="31" fill="${TINT[cat]||'#eee'}"/><ellipse cx="32" cy="55" rx="18" ry="3.5" fill="#000" opacity=".1"/>${S[g]||S.bag}</svg>`;
+}
+
+/* ---------- starter data (your list) ---------- */
+const START = [
+ ['Milk 2% Gallon'],['Whole Milk'],['Breakfast','Donuts, Poptarts'],['Paper Towels','Bulk','Costco'],['Bread','',  '', false, 2],['Butter'],['Canned Food'],
+ ['Body Wash','St. Ives Oatmeal & Shea Butter','Costco'],['Toothpaste'],['More Breakfast'],['French Bread Pizzas','','Costco'],['Pizzas'],['Mac and cheese'],
+ ['Pasta','Not a need'],['Chips','Doritos, etc.'],['Spaghetti'],['Chocolate Chip Muffins','Bakery','Kroger'],['Pasta Sauce'],['Trash Can'],['Nan Bread'],
+ ['Parmesan'],['Dish scrubber'],['Fries'],['Garlic Texas Toast'],['Cleaning Wipes'],['Plastic Cups'],['Luzianne Tea Bags'],['Ranch'],['Sugar'],['Nutella'],
+ ['Cheddar Cheese'],['Green onions'],['Pancakes'],['TV Dinners','','',true],['Chicken','','',true],['Pocky'],['Tortillas'],['Peanut butter'],['Popcorn'],
+ ['Bacon','','',true],['Meatballs'],['Gallon Container'],['Ramen'],['Cracked pepper']
+];
+const mk = (name,note='',store='',star=false,qty=1,done=false) => ({id:uid(),name,note,cat:guessCat(name+' '+note),store,star,qty,done});
+function fresh(){
+  const s = {v:1,store:'Kroger',list:START.map(a=>mk(a[0],a[1]||'',a[2]||'',!!a[3],a[4]||1,true)),trips:[],cat:{},stores:null};
+  s.list.forEach(i=>ensureCat(i,s)); return s;
+}
+function ensureCat(it, s=S){
+  const k=key(it.name);
+  if(!s.cat[k]) s.cat[k]={name:it.name,cat:it.cat,count:0,last:null,store:it.store||'',note:it.note||'',choices:{}};
+  return s.cat[k];
+}
+let S; try { S = JSON.parse(localStorage.getItem('grocery-v1')) } catch(e) {}
+if (!S || !S.list) S = fresh();
+
+/* ---------- saving: this device (localStorage) + JSON backup ---------- */
+function normalize(d){
+  d.v=d.v||1; d.store=d.store||'Kroger'; d.zip=/^\d{5}$/.test(d.zip||'')?d.zip:'40475';
+  d.trips=Array.isArray(d.trips)?d.trips:[]; d.cat=d.cat&&typeof d.cat==='object'?d.cat:{};
+  d.list=(Array.isArray(d.list)?d.list:[]).filter(i=>i&&i.name).map(i=>({id:i.id||uid(),name:String(i.name),note:i.note||'',cat:CATN[i.cat]?i.cat:guessCat(i.name),store:i.store||'',star:!!i.star,qty:Math.max(1,+i.qty||1),done:!!i.done}));
+  if(d.loc&&!d.loc.locationId) d.loc=null;
+  return d;
+}
+S=normalize(S);
+const LIMIT=4e6, WARN=3.4e6;   // characters of JSON; phones allow ~5M
+let sync='Saved on this device', warned=false;
+function save(){
+  const s=JSON.stringify(S);
+  try { localStorage.setItem('grocery-v1', s); sync='Saved on this device'; }
+  catch(e){ sync='Phone storage is full — remove some photos, or export a backup (⚙)'; toast(sync); }
+  if(s.length>WARN && !warned){ warned=true; setTimeout(()=>toast('Storage is nearly full. Remove a few of your own photos, or export a backup.'),2400); }
+  setSync(sync);
+}
+const used = () => JSON.stringify(S).length;
+function setSync(t){ sync=t; const el=$('#sync'); if(el) el.textContent=t; }
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(S)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`groceries-${today()}.json`;
+  document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},1500);
+  toast('Backup downloaded');
+}
+function importJSON(file){
+  const r=new FileReader();
+  r.onload=()=>{ let d=null; try{ d=JSON.parse(r.result) }catch(e){}
+    if(!d||!Array.isArray(d.list)||!d.cat||typeof d.cat!=='object'){ toast('That file isn’t a Groceries backup'); return; }
+    const before=snap(); S=normalize(d); save(); closeSheet(); render(); toast(`Imported ${S.list.length} items and ${S.trips.length} trips`, before); };
+  r.onerror=()=>toast('Couldn’t read that file');
+  r.readAsText(file);
+}
+
+/* ---------- Kroger, through our Worker ---------- */
+const local=/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+const API=((local&&new URLSearchParams(location.search).get('api'))||API_DEFAULT).replace(/\/$/,'');
+async function api(path, params){
+  const ctl=new AbortController(), t=setTimeout(()=>ctl.abort(),15000);
+  let r;
+  try{ r=await fetch(API+path+'?'+new URLSearchParams(params),{signal:ctl.signal}); }
+  catch(e){ throw new Error(navigator.onLine===false?'You’re offline. Try again when you have signal.':'Couldn’t reach Kroger just now. Try again in a moment.'); }
+  finally{ clearTimeout(t); }
+  let j=null; try{ j=await r.json() }catch(e){}
+  if(!r.ok) throw new Error((j&&j.error)||`Kroger search had a problem (${r.status}).`);
+  return Array.isArray(j)?j:[];
+}
+const imgSrc = u => !u ? '' : /^data:image\//.test(u) ? u : /^https:\/\//.test(u) ? API+'/img?u='+encodeURIComponent(u) : '';
+const money = n => n==null||n===''||!isFinite(n) ? '' : '$'+Number(n).toFixed(2);
+const priceHTML = p => !p||p.price==null ? '' : p.promo&&p.promo<p.price ? `<span class="price"><span class="sale">${money(p.promo)}</span><s>${money(p.price)}</s></span>` : `<span class="price">${money(p.price)}</span>`;
+const pickOf = x => ({id:String(x.productId), upc:x.upc||'', name:x.name, size:x.size||'', brand:x.brand||'', price:x.price??null, promo:x.promo??null, image:x.imageUrl||''});
+const searchQuery = (name,note) => name+(note&&!/not a need|bulk|bakery|etc/i.test(note)?' '+note.split(',')[0]:'');
+const CHAINS={KROGER:'Kroger',RALPHS:'Ralphs',FRYS:'Fry’s',KINGSOOPERS:'King Soopers',SMITHS:'Smith’s',FREDMEYER:'Fred Meyer',HARRISTEETER:'Harris Teeter',MARIANOS:'Mariano’s',PICKNSAVE:'Pick ’n Save',DILLONS:'Dillons',QFC:'QFC',CITYMARKET:'City Market',BAKERS:'Baker’s',GERBES:'Gerbes',JAYC:'Jay C',PAYLESS:'Pay Less',FOODSCO:'Foods Co',METROMARKET:'Metro Market',COPPS:'Copps',RULER:'Ruler',FOOD4LESS:'Food 4 Less',OWENS:'Owen’s',HART:'Harts'};
+const chainName = c => CHAINS[String(c||'').toUpperCase().replace(/[^A-Z0-9]/g,'')] || (c?String(c).toLowerCase().replace(/\b\w/g,m=>m.toUpperCase()):'Kroger');
+const KFAM=new Set(Object.values(CHAINS));
+const onKroger = () => KFAM.has(S.store);
+const curLoc = () => S.loc&&chainName(S.loc.chain)===S.store ? S.loc : null;
+const locLabel = l => !l ? '' : (/ - /.test(l.name)?l.name.split(' - ').slice(1).join(' - '):(l.address||'').split(',').slice(-2,-1)[0]||l.name||'').trim();
+async function ensureLoc(){
+  const have=curLoc(); if(have) return have;
+  let list=S.locCache&&S.locCache.zip===S.zip?S.locCache.list:null;
+  if(!list){ list=await api('/stores',{zip:S.zip}); S.locCache={zip:S.zip,list}; }
+  const l=list.find(x=>chainName(x.chain)===S.store)||(S.store==='Kroger'?list[0]:null);
+  if(!l) throw new Error(`No ${S.store} stores near ${S.zip}. Tap the store button to pick another.`);
+  S.loc=l; S.store=chainName(l.chain); save(); renderTop(); return l;
+}
+const STORES0 = ['Kroger','Costco','Meijer','ALDI','Target',"Sam's Club",'Publix','Save A Lot',"BJ's Wholesale Club",'The Fresh Market','Dollar General','Walgreens'];
+
+/* ---------- photos: own photo > Kroger pick > drawing ---------- */
+const choiceFor = n => { const c=S.cat[key(n)]; return c&&c.choices&&c.choices[S.store]||null; };
+const choiceOf = it => choiceFor(it.name);
+function photoFor(name){ const c=S.cat[key(name)]; if(!c) return ''; if(c.photo) return c.photo; const ch=c.choices&&c.choices[S.store]; return ch&&ch.image?imgSrc(ch.image):''; }
+function thumb(name, cat, src, style){
+  if(src===undefined) src=photoFor(name);
+  const st=style?` style="${style}"`:'';
+  if(!src) return art(name,cat).replace('class="art"',`class="art"${st}`);
+  return `<span class="art ph" data-n="${esc(name)}" data-c="${esc(cat)}"${st}><img loading="lazy" alt="" src="${esc(src)}" onerror="__artFail(this)"></span>`;
+}
+window.__artFail = img => { const s=img.parentNode; if(!s||!s.dataset) return; const st=s.getAttribute('style'); s.outerHTML=art(s.dataset.n,s.dataset.c).replace('class="art"',`class="art"${st?` style="${esc(st)}"`:''}`); };
+function readPhoto(file){
+  return new Promise((res,rej)=>{ const url=URL.createObjectURL(file), img=new Image();
+    img.onload=()=>{ const n=256, side=Math.min(img.naturalWidth,img.naturalHeight); if(!side){ URL.revokeObjectURL(url); rej(); return; }
+      const c=document.createElement('canvas'); c.width=c.height=n; const g=c.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,n,n);
+      g.drawImage(img,(img.naturalWidth-side)/2,(img.naturalHeight-side)/2,side,side,0,0,n,n);
+      URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg',.8)); };
+    img.onerror=()=>{ URL.revokeObjectURL(url); rej(); };
+    img.src=url; });
+}
+
+/* ---------- helpers ---------- */
+const onList = n => S.list.some(i=>key(i.name)===key(n));
+function addItem(name, extra={}){
+  name=String(name).trim(); if(!name) return;
+  const ex=S.list.find(i=>key(i.name)===key(name));
+  if(ex){ if(ex.done){ex.done=false;} else ex.qty=(ex.qty||1)+1; save(); render(); toast(`${name} is on your list`); return; }
+  const c=S.cat[key(name)];
+  const it=mk(c?c.name:name, extra.note ?? (c?c.note:''), extra.store ?? (c?c.store:''), false, 1, false);
+  if(extra.cat||c) it.cat=extra.cat||c.cat;
+  S.list.unshift(it); ensureCat(it); save(); render(); toast(`Added ${it.name}`);
+}
+let undoSnap=null, tt=null;
+function toast(msg, undo){
+  $('#tmsg').textContent=msg; $('#tundo').style.display=undo?'':'none'; undoSnap=undo||null;
+  $('#toast').classList.add('on'); clearTimeout(tt); tt=setTimeout(()=>$('#toast').classList.remove('on'),undo?5000:2200);
+}
+$('#tundo').onclick=()=>{ if(undoSnap){ S=JSON.parse(undoSnap); save(); render(); } $('#toast').classList.remove('on'); };
+const snap = () => JSON.stringify(S);
+function listText(){
+  const todo=S.list.filter(i=>!i.done); if(!todo.length) return '';
+  const out=[];
+  CATS.forEach(([k,label])=>{ const g=todo.filter(i=>i.cat===k); if(!g.length) return;
+    out.push(label); g.forEach(i=>{ const c=choiceOf(i); const extra=c?c.name:i.note; out.push(`- ${i.name}${i.qty>1?' ×'+i.qty:''}${extra?' — '+extra:''}${i.store&&i.store!==S.store?' ('+i.store+')':''}`); }); out.push(''); });
+  return `Groceries — ${S.store}\n\n`+out.join('\n').trim();
+}
+async function copyList(){
+  const t=listText(); if(!t){ toast('Nothing left to copy — everything’s in the cart'); return; }
+  let ok=false; try{ await navigator.clipboard.writeText(t); ok=true; }catch(e){}
+  if(!ok){ const ta=document.createElement('textarea'); ta.value=t; ta.setAttribute('readonly',''); ta.style.cssText='position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); try{ ok=document.execCommand('copy') }catch(e){} ta.remove(); }
+  toast(ok?`Copied ${S.list.filter(i=>!i.done).length} items`:'Couldn’t copy on this browser');
+}
+
+/* ---------- header ---------- */
+const IC = {
+ copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="13" rx="2.5"/><path d="M16 8V5.5A2.5 2.5 0 0 0 13.5 3h-7A2.5 2.5 0 0 0 4 5.5v9A2.5 2.5 0 0 0 6.5 17H8"/></svg>',
+ flag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4h11l-2 4 2 4H5"/></svg>',
+ list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.3" fill="currentColor"/><circle cx="4.5" cy="12" r="1.3" fill="currentColor"/><circle cx="4.5" cy="18" r="1.3" fill="currentColor"/></svg>',
+ spark:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M12 3l2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2z"/></svg>',
+ clock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+ book:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></svg>',
+ x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+ check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+ search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>',
+ gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+ camera:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+ ext:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
+ tag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg>'
+};
+let tab='list';
+function renderTop(){
+  const n=S.list.length, d=S.list.filter(i=>i.done).length, l=curLoc();
+  $('#top').innerHTML = `<svg class="deco" viewBox="0 0 64 64">${art('bread','bakery').replace(/^<svg[^>]*>|<\/svg>$/g,'')}</svg>
+   <button class="gear" data-act="settings" aria-label="Settings and backup">${IC.gear}</button>
+   <h1>Groceries</h1>
+   <button class="storeBtn" data-act="store"><small>Shopping at</small> ${esc(S.store)}${l?` <small>· ${esc(locLabel(l))}</small>`:''} <span aria-hidden="true">▾</span></button>
+   <div class="prog"><div class="bar"><i style="width:${n?d/n*100:0}%"></i></div><b>${d} of ${n} in cart</b></div>
+   <div class="acts">
+     <button class="pill p-lemon" data-act="copy">${IC.copy} Copy list</button>
+     <button class="pill p-light" data-act="finish" ${d?'':'disabled style="opacity:.5"'}>${IC.flag} Finish trip</button>
+   </div>
+   <div class="sync" id="sync">${esc(sync)}</div>`;
+}
+
+/* ---------- list ---------- */
+function rowHTML(it){
+  const ch=choiceOf(it);
+  const sub = ch ? `${esc(ch.name)}${ch.size?' · '+esc(ch.size):''}` : esc(it.note||'');
+  return `<div class="row ${it.done?'done':''}">
+    <button class="body" data-act="edit" data-id="${it.id}" style="display:contents">${thumb(it.name,it.cat)}<span class="body"><div class="nm">${esc(it.name)}${it.qty>1?` <span style="color:var(--tomato)">×${it.qty}</span>`:''}</div>${sub?`<div class="sub">${sub}</div>`:''}
+     <div class="tags">${it.star?'<span class="tag star">Must get</span>':''}${ch?'<span class="tag pick">Picked</span>':`<span class="tag" style="cursor:pointer">Choose product</span>`}${it.store&&it.store!==S.store?`<span class="tag">Usually ${esc(it.store)}</span>`:''}</div></span></button>
+    <button class="rm" data-act="del" data-id="${it.id}" aria-label="Remove ${esc(it.name)}">${IC.x}</button>
+    <button class="chk" data-act="tick" data-id="${it.id}" aria-label="${it.done?'Put back':'Got it'}: ${esc(it.name)}">${IC.check}</button>
+  </div>`;
+}
+function renderList(){
+  const isAway=i=>!i.done&&i.store&&i.store!==S.store; const here=S.list.filter(i=>!isAway(i)), away=S.list.filter(isAway);
+  const todo=here.filter(i=>!i.done), done=here.filter(i=>i.done);
+  const groups={}; todo.forEach(i=>(groups[i.cat]=groups[i.cat]||[]).push(i));
+  const order=CATS.map(c=>c[0]).filter(k=>groups[k]);
+  todo.sort((a,b)=>b.star-a.star);
+  const sug = Object.values(S.cat).filter(c=>!onList(c.name)).sort((a,b)=>b.count-a.count).slice(0,10);
+  let h = `<div class="addbar"><form class="addrow" id="addf"><input id="addi" placeholder="Add an item…" autocomplete="off" aria-label="Add an item"><button aria-label="Add">Add</button></form>
+   ${sug.length?`<div class="sugs" id="sugs">${sug.map(c=>`<button data-act="quick" data-n="${esc(c.name)}">+ ${esc(c.name)}</button>`).join('')}</div>`:''}</div><main>`;
+  if(!S.list.length) h+=`<div class="empty">${art('trash can','household')}<h2 style="font-size:24px;color:var(--ink)">List’s clear</h2><p>Add items above, restock your last trip, or grab ideas.</p><div class="btnrow"><button class="pill p-tom" data-act="restock">Restock last trip</button><button class="pill p-soft" data-act="tab" data-t="ideas">See ideas</button></div></div>`;
+  if(S.list.length && !todo.length && done.length) h+=`<div class="banner"><p><b>Everything here is in the cart.</b> Finish the trip to save it to History and your Catalog — the items stay saved, nothing is lost.</p><button class="pill p-green" data-act="finish">${IC.flag} Finish trip & save</button></div>`;
+  order.forEach(k=>{ h+=`<div class="sec"><h2>${CATN[k]}</h2><span>${groups[k].length}</span></div>`+groups[k].map(rowHTML).join(''); });
+  if(away.length) h+=`<div class="sec"><h2>For other stores</h2><span>${away.length}</span></div>`+away.map(rowHTML).join('');
+  if(done.length) h+=`<div class="sec"><h2>In the cart</h2><span>${done.length}</span></div>`+done.map(rowHTML).join('');
+  h+='</main>';
+  $('#view').innerHTML=h;
+  $('#addf').onsubmit=e=>{e.preventDefault(); const v=$('#addi').value; $('#addi').value=''; addItem(v);};
+  $('#addi').oninput=e=>{ const q=key(e.target.value); const el=$('#sugs'); if(!el) return;
+    const m=Object.values(S.cat).filter(c=>!onList(c.name)&&(!q||key(c.name).includes(q))).sort((a,b)=>b.count-a.count).slice(0,10);
+    el.innerHTML=m.map(c=>`<button data-act="quick" data-n="${esc(c.name)}">+ ${esc(c.name)}</button>`).join(''); };
+}
+
+/* ---------- ideas ---------- */
+const PAIRS=[[/spaghetti|^pasta$/,['Ground beef','Garlic bread']],[/pasta sauce/,['Ground beef','Italian seasoning']],[/pancake/,['Maple syrup','Eggs']],[/^bread|texas toast/,['Deli turkey','Eggs']],
+ [/peanut butter/,['Grape jelly','Bananas']],[/tortilla/,['Shredded cheese','Salsa']],[/chicken/,['BBQ sauce','Rice']],[/bacon/,['Eggs','Hash browns']],[/ramen/,['Eggs']],
+ [/nutella/,['Strawberries','Bananas']],[/tea/,['Lemons']],[/chip/,['Salsa','French onion dip']],[/fries/,['Ketchup']],[/milk/,['Cereal']],[/mac and cheese/,['Hot dogs']],
+ [/trash can|wipes/,['Trash bags']],[/scrubber/,['Dish soap']],[/toothpaste/,['Toothbrush','Floss']],[/body wash/,['Shampoo','Deodorant']],[/plastic cups/,['Paper plates']],
+ [/meatball/,['Sub rolls','Mozzarella']],[/cheddar/,['Crackers']],[/pizza/,['Pepperoni']]];
+let SALE=null, saleState='', saleBusy=false;
+function pairings(){
+  const base = S.list.length ? S.list : (S.trips[0]?.items||[]);
+  const names=S.list.map(i=>key(i.name)), out=[], seen=new Set();
+  base.forEach(b=>PAIRS.forEach(([r,arr])=>{ if(r.test(key(b.name))) arr.forEach(s=>{ const k=key(s), w=k.split(' ')[0];
+    if(seen.has(k)||names.some(n=>n.includes(w)&&w.length>3)||onList(s)) return; seen.add(k); out.push({name:s,why:'Goes with '+b.name}); }); }));
+  return out.slice(0,12);
+}
+function miniRow(name,cat,sub,src){
+  const on=onList(name);
+  return `<div class="mini">${thumb(name,cat,src)}<div><div class="nm">${esc(name)}</div>${sub?`<div class="sub">${esc(sub)}</div>`:''}</div><button class="plus ${on?'on':''}" data-act="quick" data-n="${esc(name)}" ${on?'disabled':''} aria-label="Add ${esc(name)}">${on?'On list':'+ Add'}</button></div>`;
+}
+function saleRow(x,i){
+  const on=onList(x.item);
+  return `<div class="mini">${thumb(x.item,x.cat,imgSrc(x.p.imageUrl))}<div><div class="nm">${esc(x.item)}</div><div class="sub">${esc(x.p.name)}${x.p.size?' · '+esc(x.p.size):''}</div>${priceHTML(x.p)}</div><button class="plus ${on?'on':''}" data-act="saleadd" data-i="${i}" ${on?'disabled':''} aria-label="Add ${esc(x.item)}">${on?'On list':'+ Add'}</button></div>`;
+}
+function renderIdeas(){
+  const p=pairings(), l=curLoc();
+  const usual=Object.values(S.cat).filter(c=>!onList(c.name)&&c.count>0).sort((a,b)=>b.count-a.count||String(b.last).localeCompare(String(a.last))).slice(0,10);
+  let h=`<main><div class="sec"><h2 style="font-size:28px">Ideas for your list</h2></div>
+  <div class="card"><h3 style="font-size:19px">Goes with what you’re getting</h3>${p.length?p.map(x=>miniRow(x.name,guessCat(x.name),x.why)).join(''):'<p class="note">Add a few items and matches show up here.</p>'}</div>
+  <div class="card"><h3 style="font-size:19px">Your usuals not on the list</h3>${usual.length?usual.map(c=>miniRow(c.name,c.cat,`Bought ${c.count}× · last ${fmtD(c.last)}`)).join(''):'<p class="note">Finish a trip and your regular buys appear here.</p>'}</div>
+  <div class="card"><h3 style="font-size:19px">On sale at ${esc(S.store)}</h3>
+   ${onKroger()?`<p class="note">Checks your usuals${l?' at '+esc(locLabel(l)):''} for sale prices.</p>`:'<p class="note">Sale prices come from Kroger-family stores. Choose one from the store button to see what’s on sale.</p>'}
+   ${SALE&&SALE.length?SALE.map(saleRow).join(''):SALE&&!saleState?'<p class="note">None of your usuals are on sale right now.</p>':''}
+   ${saleState?`<div class="${saleBusy?'note':'err'}">${esc(saleState)}</div>`:''}
+   <div class="btnrow">${onKroger()?`<button class="pill p-green" data-act="sales" ${saleBusy?'disabled':''}>${IC.tag} ${saleBusy?'Checking…':SALE?'Check again':'Check sales'}</button>`:'<button class="pill p-soft" data-act="store">Choose a Kroger store</button>'}</div></div></main>`;
+  $('#view').innerHTML=h;
+}
+async function runSales(){
+  if(saleBusy) return;
+  let loc; try{ loc=await ensureLoc(); }catch(e){ saleState=e.message; renderIdeas(); return; }
+  const usual=Object.values(S.cat).filter(c=>c.count>0).sort((a,b)=>b.count-a.count);
+  const pool=(usual.length?usual:S.list.map(i=>S.cat[key(i.name)]).filter(Boolean)).slice(0,12);
+  if(!pool.length){ saleState='Add a few items or finish a trip first.'; renderIdeas(); return; }
+  saleBusy=true; saleState=`Checking ${pool.length} of your usuals…`; if(tab==='ideas') renderIdeas();
+  const out=[]; let fails=0;
+  for(let i=0;i<pool.length;i+=3) await Promise.all(pool.slice(i,i+3).map(async c=>{
+    try{ const r=await api('/search',{q:searchQuery(c.name,c.note),locationId:loc.locationId,limit:10});
+      const mine=c.choices&&c.choices[S.store], hit=mine&&r.find(x=>x.productId===String(mine.id));
+      const p=hit&&hit.promo?hit:r.slice(0,5).find(x=>x.promo&&x.price);
+      if(p) out.push({item:c.name,cat:c.cat,p}); }catch(e){ fails++; } }));
+  saleBusy=false;
+  if(fails===pool.length){ SALE=null; saleState='Couldn’t reach Kroger just now. Try again in a moment.'; }
+  else { SALE=out.sort((a,b)=>(b.p.price-b.p.promo)-(a.p.price-a.p.promo)); saleState=''; }
+  if(tab==='ideas') renderIdeas();
+}
+
+/* ---------- history ---------- */
+const histSrc = i => { const c=S.cat[key(i.name)]; return (c&&c.photo)||(i.image?imgSrc(i.image):photoFor(i.name)); };
+function renderHistory(){
+  let h=`<main><div class="sec"><h2 style="font-size:28px">Past trips</h2><span>${S.trips.length}</span></div>`;
+  if(!S.trips.length) h+=`<div class="empty">${art('paper towels','household')}<p>Tap <b>Finish trip</b> after shopping. Everything you bought lands here, grouped by trip.</p></div>`;
+  S.trips.forEach(t=>{
+    h+=`<details class="card"><summary style="list-style:none;cursor:pointer"><div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline"><h3 style="font-size:20px">${fmtD(t.date)}</h3><span class="note">${esc(t.store)} · ${t.items.length} items</span></div>
+     <div class="strip">${t.items.slice(0,14).map(i=>thumb(i.name,i.cat,histSrc(i))).join('')}</div></summary>
+     <div style="margin-top:8px">${t.items.map(i=>miniRow(i.name,i.cat,i.pick||i.note||'',histSrc(i))).join('')}</div>
+     <div class="btnrow"><button class="pill p-tom" data-act="readd" data-id="${t.id}">Add all to list</button></div></details>`;
+  });
+  $('#view').innerHTML=h+'</main>';
+}
+
+/* ---------- catalog ---------- */
+let cq='', cfilter='all', CR=null, crState='', crBusy=false;
+function renderCatalog(){
+  const all=Object.values(S.cat);
+  const used=CATS.filter(c=>all.some(x=>x.cat===c[0]));
+  const q=key(cq);
+  let h=`<main><div class="sec"><h2 style="font-size:28px">Catalog</h2><span>${all.length} items</span></div>
+   <form id="cf" style="display:flex;gap:8px"><input class="search" id="cq" placeholder="Search your items or ${esc(S.store)}" value="${esc(cq)}" aria-label="Search"><button class="pill p-green" aria-label="Search ${esc(S.store)}">${IC.search}</button></form>
+   <div class="chips"><button data-act="cf" data-c="all" aria-pressed="${cfilter==='all'}">All</button>${used.map(c=>`<button data-act="cf" data-c="${c[0]}" aria-pressed="${cfilter===c[0]}">${c[1]}</button>`).join('')}</div>`;
+  if(CR||crState){
+    h+=`<div class="card"><h3 style="font-size:19px">${esc(S.store)} products</h3>${crState?`<div class="${crBusy?'note':'err'}">${esc(crState)}</div>`:''}
+    ${(CR||[]).map((p,i)=>`<div class="mini">${thumb(p.name,guessCat(cq||p.name),imgSrc(p.imageUrl))}<div><div class="nm">${esc(p.name)}</div><div class="sub">${esc([p.brand,p.size].filter(Boolean).join(' · '))}</div>${priceHTML(p)}</div><button class="plus" data-act="addpick" data-i="${i}" aria-label="Add ${esc(p.name)}">+ Add</button></div>`).join('')}</div>`;
+  }
+  used.filter(c=>cfilter==='all'||cfilter===c[0]).forEach(c=>{
+    const items=all.filter(x=>x.cat===c[0]&&(!q||key(x.name).includes(q))).sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name));
+    if(!items.length) return;
+    h+=`<details class="cat" ${q||cfilter!=='all'?'open':''}><summary>${thumb(items[0].name,c[0])} ${c[1]}<span>${items.length}</span></summary>
+     ${items.map(x=>{const ch=x.choices&&x.choices[S.store]; return miniRow(x.name,x.cat,[x.count?`Bought ${x.count}×`:'Not bought yet',x.last?'last '+fmtD(x.last):'',ch?ch.name:''].filter(Boolean).join(' · '));}).join('')}</details>`;
+  });
+  $('#view').innerHTML=h+'</main>';
+  $('#cq').oninput=e=>{ cq=e.target.value; const pos=e.target.selectionStart; renderCatalog(); const i=$('#cq'); i.focus(); try{i.setSelectionRange(pos,pos)}catch(_){} };
+  $('#cf').onsubmit=async e=>{ e.preventDefault(); const term=cq.trim(); if(!term) return;
+    if(!onKroger()){ CR=null; crBusy=false; crState=`${S.store} isn’t a Kroger-family store, so there’s nothing to search. Choose a Kroger store from the store button.`; renderCatalog(); return; }
+    CR=[]; crBusy=true; crState=`Searching ${S.store}…`; renderCatalog();
+    try{ const loc=await ensureLoc(); CR=await api('/search',{q:term,locationId:loc.locationId}); crState=CR.length?'':`Nothing found at ${S.store}. Try simpler words.`; }
+    catch(err){ CR=null; crState=err.message; }
+    crBusy=false; if(tab==='catalog') renderCatalog(); };
+}
+
+/* ---------- sheets ---------- */
+let SEQ=0;
+function openSheet(html){ $('#sheet').innerHTML='<div class="grab"></div>'+html; $('#sheet').classList.add('on'); $('#scrim').classList.add('on'); return ++SEQ; }
+function closeSheet(){ SEQ++; $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); }
+$('#scrim').onclick=closeSheet;
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeSheet(); });
+
+function editSheet(it){
+  const ch=choiceOf(it), c=ensureCat(it);
+  openSheet(`<div style="display:flex;gap:12px;align-items:center">${thumb(it.name,it.cat,undefined,'width:72px;height:72px;flex:none')}<div><h3>${esc(it.name)}</h3><div class="note">${CATN[it.cat]}</div></div></div>
+   <div class="card" style="margin-top:14px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div><b>Product at ${esc(S.store)}</b><div class="note">${ch?esc(ch.name)+(ch.size?' · '+esc(ch.size):''):onKroger()?'Pick the exact brand and size':'Product search works at Kroger-family stores'}</div>${ch?priceHTML(ch):''}</div><button class="pill p-tom" data-act="variants" data-id="${it.id}">${ch?'Change':'Choose'}</button></div>
+    <div class="list-acts"><button type="button" class="pill p-soft" data-act="photo" data-id="${it.id}">${IC.camera} ${c.photo?'Retake photo':'Add photo'}</button>${c.photo?`<button type="button" class="pill p-soft" data-act="rmphoto" data-id="${it.id}">Remove photo</button>`:''}
+    <a class="pill p-soft" href="https://www.instacart.com/store/s?k=${encodeURIComponent(it.name)}" target="_blank" rel="noopener">${IC.ext} Open in Instacart</a></div>
+    <input type="file" id="phf" accept="image/*" capture="environment" hidden></div>
+   <form id="ef"><div class="field"><label for="en">Name</label><input id="en" value="${esc(it.name)}"></div>
+   <div class="field"><label for="eo">Note</label><input id="eo" value="${esc(it.note||'')}" placeholder="Brand, flavour, size…"></div>
+   <div class="two"><div class="field"><label for="ec">Aisle</label><select id="ec">${CATS.map(c=>`<option value="${c[0]}" ${c[0]===it.cat?'selected':''}>${c[1]}</option>`).join('')}</select></div>
+   <div class="field"><label for="es">Usual store</label><select id="es"><option value="">Any store</option>${storeList().map(s=>`<option ${s===it.store?'selected':''}>${esc(s)}</option>`).join('')}</select></div></div>
+   <div class="two"><div class="field"><label>How many</label><div class="step"><button type="button" id="qm" aria-label="Fewer">−</button><b id="qv">${it.qty||1}</b><button type="button" id="qp" aria-label="More">+</button></div></div>
+   <div class="field"><label for="est">Priority</label><select id="est"><option value="0">Normal</option><option value="1" ${it.star?'selected':''}>Must get</option></select></div></div>
+   <div class="btnrow"><button class="pill p-green">Save</button><button type="button" class="pill p-soft" data-act="del" data-id="${it.id}" style="color:var(--tomato)">Remove from list</button></div></form>`);
+  let q=it.qty||1; $('#qm').onclick=()=>{q=Math.max(1,q-1);$('#qv').textContent=q}; $('#qp').onclick=()=>{q++;$('#qv').textContent=q};
+  $('#phf').onchange=async e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return;
+    try{ const d=await readPhoto(f); const c=ensureCat(it);
+      if(used()-(c.photo?c.photo.length:0)+d.length>LIMIT){ toast('Not enough room for another photo. Remove one, or export a backup.'); return; }
+      c.photo=d; save(); render(); editSheet(it); toast('Photo saved'); }
+    catch(err){ toast('Couldn’t read that photo'); } };
+  $('#ef').onsubmit=e=>{ e.preventDefault(); const nn=$('#en').value.trim()||it.name;
+    if(key(nn)!==key(it.name)){ it.name=nn; } it.note=$('#eo').value.trim(); it.cat=$('#ec').value; it.store=$('#es').value; it.qty=q; it.star=$('#est').value==='1';
+    const c=ensureCat(it); c.cat=it.cat; c.note=it.note; c.store=it.store; save(); closeSheet(); render(); };
+}
+let VR=[];
+async function variantSheet(it, query){
+  const ch=choiceOf(it); query = query || searchQuery(it.name,it.note);
+  if(!onKroger()){
+    openSheet(`<h3>Choose ${esc(it.name)}</h3><div class="note">Real product photos and prices come from Kroger-family stores.</div>
+     <div class="err">${esc(S.store)} isn’t a Kroger store, so there’s nothing to search here. Switch to a Kroger store, or snap your own photo of it.</div>
+     <div class="btnrow"><button class="pill p-tom" data-act="store">Choose a Kroger store</button><button class="pill p-soft" data-act="edit" data-id="${it.id}">${IC.camera} Add photo</button></div>`);
+    return;
+  }
+  const head=l=>`<h3>Choose ${esc(it.name)}</h3><div class="note">Real products at ${esc(S.store)}${l?' · '+esc(locLabel(l)):''}</div>
+   <form id="vf" style="display:flex;gap:8px;margin-top:12px"><input class="search" id="vq" value="${esc(query)}" aria-label="Search products"><button class="pill p-green" aria-label="Search">${IC.search}</button></form>`;
+  const bind=()=>{ const f=$('#vf'); if(f) f.onsubmit=e=>{e.preventDefault(); variantSheet(it,$('#vq').value.trim()||it.name);} };
+  const mine=openSheet(head(curLoc())+`<div class="vgrid">${'<div class="skel"></div>'.repeat(4)}</div>`);
+  bind();
+  try{
+    const loc=await ensureLoc();
+    const items=await api('/search',{q:query,locationId:loc.locationId});
+    if(SEQ!==mine) return;
+    VR=items;
+    openSheet(head(loc)+(items.length?`<div class="vgrid">${items.map((x,i)=>`<button class="v" data-act="pick" data-id="${it.id}" data-i="${i}" aria-pressed="${!!ch&&String(ch.id)===String(x.productId)}">${thumb(x.name,it.cat,imgSrc(x.imageUrl))}${x.brand?`<span class="brand">${esc(x.brand)}</span>`:''}<span class="nm">${esc(x.name)}</span>${x.size?`<span class="sub">${esc(x.size)}</span>`:''}${priceHTML(x)}</button>`).join('')}</div>`:`<div class="err">Nothing came up at ${esc(S.store)}. Try a simpler search.</div>`)
+      +(ch?`<div class="btnrow"><button class="pill p-soft" data-act="unpick" data-id="${it.id}">Clear my pick</button></div>`:''));
+    bind();
+  }catch(e){ if(SEQ!==mine) return; openSheet(head(curLoc())+`<div class="err">${esc(e.message)}</div>`); bind(); }
+}
+function storeList(){ const b=(S.stores&&S.stores.length?S.stores:STORES0); return b.includes(S.store)?b:[S.store,...b]; }
+let locState='', locBusy=false;
+function storeSheet(){
+  let mine=0;
+  const draw=()=>{
+    const list=S.locCache&&S.locCache.zip===S.zip?S.locCache.list:null, l=curLoc();
+    mine=openSheet(`<h3>Where are you shopping?</h3><div class="note">Kroger-family stores show real product photos, prices and sales. Your pick also sorts the list and remembers product choices per store.</div>
+     <h4>Kroger stores near you</h4>
+     <form class="zipf" id="zf"><input id="zip" inputmode="numeric" autocomplete="postal-code" maxlength="5" value="${esc(S.zip)}" aria-label="ZIP code"><button class="pill p-green">Find stores</button></form>
+     <div class="locs">${list?(list.map((x,i)=>`<button class="loc" data-act="setloc" data-i="${i}" aria-pressed="${!!l&&l.locationId===x.locationId}"><b>${esc(x.name)}</b><span>${esc(x.address)}</span></button>`).join('')||'<div class="note">No Kroger-family stores near that ZIP.</div>'):''}
+     ${locState?`<div class="${locBusy?'note':'err'}">${esc(locState)}</div>`:''}</div>
+     <h4>Other stores</h4><div class="note">Tags for sorting your list. No photos or prices.</div>
+     <div class="chips">${storeList().filter(s=>!KFAM.has(s)).map(s=>`<button data-act="setstore" data-s="${esc(s)}" aria-pressed="${s===S.store}">${esc(s)}</button>`).join('')}</div>`);
+    $('#zf').onsubmit=e=>{ e.preventDefault(); const z=$('#zip').value.trim(); if(!/^\d{5}$/.test(z)){ locState='Enter a 5-digit ZIP code.'; draw(); return; } S.zip=z; save(); find(); };
+  };
+  const find=async()=>{ locBusy=true; locState=`Finding stores near ${S.zip}…`; draw(); const me=mine;
+    try{ S.locCache={zip:S.zip,list:await api('/stores',{zip:S.zip})}; locState=''; save(); }catch(e){ locState=e.message; }
+    locBusy=false; if(SEQ===me) draw(); };
+  if(S.locCache&&S.locCache.zip===S.zip){ locState=''; draw(); } else find();
+}
+function settingsSheet(){
+  const u=used(); let th='auto'; try{ th=localStorage.getItem('grocery-theme')||'auto' }catch(e){}
+  openSheet(`<h3>Settings & backup</h3><div class="note">Your list, history and catalog are saved on this phone only. Export a backup now and then, or to move to another device.</div>
+   <h4>Backup</h4>
+   <div class="btnrow"><button class="pill p-green" data-act="export">Export JSON</button><button class="pill p-soft" data-act="import">Import JSON</button></div>
+   <input type="file" id="impf" accept="application/json,.json" hidden>
+   <p class="note">Storage used: ${(u/1e6).toFixed(2)} MB of about ${LIMIT/1e6} MB${u>WARN?' — nearly full':''}.</p>
+   <h4>Appearance</h4>
+   <div class="chips">${[['auto','Match phone'],['light','Light'],['dark','Dark']].map(([k,l])=>`<button data-act="theme" data-th="${k}" aria-pressed="${th===k}">${l}</button>`).join('')}</div>
+   <p class="note">Product photos and prices come from Kroger. Items from other stores use drawings or your own photos.</p>`);
+  $('#impf').onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(f) importJSON(f); };
+}
+
+/* ---------- actions ---------- */
+function finishTrip(){
+  const got=S.list.filter(i=>i.done); if(!got.length) return;
+  const before=snap(), d=today();
+  S.trips.unshift({id:uid(),date:d,store:S.store,items:got.map(i=>{const c=choiceOf(i);return {name:i.name,cat:i.cat,note:i.note||'',pick:c?c.name:'',image:c&&c.image||''}})});
+  if(S.trips.length>40) S.trips.length=40;
+  got.forEach(i=>{ const c=ensureCat(i); c.count=(c.count||0)+1; c.last=d; });
+  S.list=S.list.filter(i=>!i.done); save(); render(); toast(`Saved ${got.length} items to History`, before);
+}
+const resetSearches = () => { SALE=null; saleState=''; CR=null; crState=''; };
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]'); if(!b) return;
+  const a=b.dataset.act, it=b.dataset.id&&S.list.find(i=>i.id===b.dataset.id);
+  if(a==='tick'&&it){ it.done=!it.done; save(); render(); }
+  else if(a==='edit'&&it) editSheet(it);
+  else if(a==='variants'&&it) variantSheet(it);
+  else if(a==='pick'&&it){ const x=VR[+b.dataset.i]; if(!x) return; const c=ensureCat(it); c.choices=c.choices||{}; c.choices[S.store]=pickOf(x); save(); closeSheet(); render(); toast('Picked for '+S.store); }
+  else if(a==='unpick'&&it){ const c=ensureCat(it); if(c.choices) delete c.choices[S.store]; save(); closeSheet(); render(); }
+  else if(a==='photo'&&it){ const f=$('#phf'); if(f){ f.value=''; f.click(); } }
+  else if(a==='rmphoto'&&it){ const c=ensureCat(it); delete c.photo; save(); render(); editSheet(it); toast('Photo removed'); }
+  else if(a==='del'&&it){ const before=snap(); S.list=S.list.filter(i=>i!==it); save(); closeSheet(); render(); toast(`Removed ${it.name} — still in your Catalog`, before); }
+  else if(a==='quick') addItem(b.dataset.n);
+  else if(a==='addpick'){ const x=CR&&CR[+b.dataset.i]; if(!x) return; const cat=guessCat(cq||x.name); const nm=cq.trim()?cq.trim().replace(/^\w/,c=>c.toUpperCase()):x.name; addItem(nm,{cat}); const c=S.cat[key(nm)]; if(c){ c.choices=c.choices||{}; c.choices[S.store]=pickOf(x); save(); render(); } }
+  else if(a==='saleadd'){ const x=SALE&&SALE[+b.dataset.i]; if(!x) return; addItem(x.item); const c=S.cat[key(x.item)]; if(c){ c.choices=c.choices||{}; if(!c.choices[S.store]) c.choices[S.store]=pickOf(x.p); save(); render(); } }
+  else if(a==='sales') runSales();
+  else if(a==='store') storeSheet();
+  else if(a==='setloc'){ const l=S.locCache&&S.locCache.list[+b.dataset.i]; if(!l) return; S.loc=l; S.store=chainName(l.chain); resetSearches(); save(); closeSheet(); render(); toast(`Shopping at ${S.store} · ${locLabel(l)}`); }
+  else if(a==='setstore'){ S.store=b.dataset.s; resetSearches(); save(); closeSheet(); render(); toast('Shopping at '+S.store); }
+  else if(a==='copy') copyList();
+  else if(a==='settings') settingsSheet();
+  else if(a==='export') exportJSON();
+  else if(a==='import'){ const f=$('#impf'); if(f){ f.value=''; f.click(); } }
+  else if(a==='theme'){ const t=b.dataset.th; if(t==='auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme=t; try{ t==='auto'?localStorage.removeItem('grocery-theme'):localStorage.setItem('grocery-theme',t) }catch(e){} settingsSheet(); }
+  else if(a==='close') closeSheet();
+  else if(a==='finish') finishTrip();
+  else if(a==='restock'){ const t=S.trips[0]; if(!t){ toast('No past trips yet'); return; } t.items.forEach(i=>{ if(!onList(i.name)){ const n=mk(i.name,i.note||'','',false,1,false); n.cat=i.cat; const c=S.cat[key(i.name)]; if(c){n.store=c.store||'';} S.list.push(n);} }); save(); render(); toast(`Added ${t.items.length} items from ${fmtD(t.date)}`); }
+  else if(a==='readd'){ const t=S.trips.find(x=>x.id===b.dataset.id); if(t){ let n=0; t.items.forEach(i=>{ if(!onList(i.name)){ const x=mk(i.name,i.note||'','',false,1,false); x.cat=i.cat; S.list.push(x); n++; } }); save(); render(); toast(`Added ${n} items`); } }
+  else if(a==='tab'){ tab=b.dataset.t; render(); scrollTo(0,0); }
+  else if(a==='cf'){ cfilter=b.dataset.c; renderCatalog(); }
+});
+
+/* ---------- tabs + render ---------- */
+const TABS=[['list','List',IC.list],['ideas','Ideas',IC.spark],['history','History',IC.clock],['catalog','Catalog',IC.book]];
+function render(){
+  renderTop();
+  $('#tabs').innerHTML=TABS.map(t=>`<button data-act="tab" data-t="${t[0]}" ${tab===t[0]?'aria-current="page"':''}>${t[2]}${t[1]}</button>`).join('');
+  ({list:renderList,ideas:renderIdeas,history:renderHistory,catalog:renderCatalog})[tab]();
+}
+render();
+}
+</script>
+</body>
+</html>
