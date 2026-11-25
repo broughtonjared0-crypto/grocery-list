@@ -18,9 +18,12 @@ import touchIcon from '../../site/apple-touch-icon.png';
 import swJs from '../../site/sw.js';
 
 // The app's own files, served from the Worker's URL.
+// A short fingerprint of the app page, so open copies can tell when a newer version is live.
+const BUILD = (() => { let h = 0; for (let i = 0; i < indexHtml.length; i++) h = (h * 31 + indexHtml.charCodeAt(i)) | 0; return (h >>> 0).toString(36); })();
+const PAGE = indexHtml.replace("'__BUILD__'", `'${BUILD}'`);
 const SITE = {
-  '/': [indexHtml, 'text/html; charset=utf-8', 300],
-  '/index.html': [indexHtml, 'text/html; charset=utf-8', 300],
+  '/': [PAGE, 'text/html; charset=utf-8', 0],
+  '/index.html': [PAGE, 'text/html; charset=utf-8', 0],
   '/manifest.webmanifest': [manifest, 'application/manifest+json', 86400],
   '/icon.svg': [iconSvg, 'image/svg+xml', 86400],
   '/icon-192.png': [icon192, 'image/png', 86400],
@@ -59,6 +62,8 @@ export default {
 
     const file = SITE[url.pathname];
     if (file && req.method === 'GET') return new Response(file[0], { headers: { 'Content-Type': file[1], 'Cache-Control': file[2] ? `public, max-age=${file[2]}` : 'no-cache' } });
+
+    if (url.pathname === '/version') return json({ build: BUILD }, 200, allowed);
 
     try {
       if (isSync) return await syncRoute(req, url, env, allowed);
