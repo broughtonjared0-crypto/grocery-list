@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <title>Groceries</title>
 <meta name="theme-color" content="#0e3b2c">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -27,6 +27,8 @@
 --green:light-dark(#0e3b2c,#0d2a1f);--lemon:#ffd23f;--tomato:#ff5436;--leaf:#2f9e6b}
 :root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;min-width:0;-webkit-tap-highlight-color:transparent}
+html{touch-action:manipulation;-webkit-text-size-adjust:100%}
+button,a,.row,.v,.loc,nav.tabs{touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "DM Sans",system-ui,sans-serif;overflow-x:clip}
 button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 input,select{font:inherit;font-size:16px;color:var(--ink)}
@@ -148,7 +150,7 @@ a.pill{text-decoration:none}
 .fav{position:absolute;top:6px;right:6px;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--card) 90%,transparent);color:var(--mute);box-shadow:0 1px 5px rgba(0,0,0,.14)}
 .fav svg,.plus svg{width:22px;height:22px;vertical-align:middle}
 .fav[aria-pressed=true],.plus[aria-pressed=true]{color:#d9a400}
-.tag.fav{background:color-mix(in srgb,var(--lemon) 38%,transparent);color:var(--ink)}
+.tag.favtag{background:color-mix(in srgb,var(--lemon) 38%,transparent);color:var(--ink)}
 .mbtns{display:flex;gap:6px}
 .sheet h4{font-family:"Familjen Grotesk",sans-serif;font-size:18px;margin:18px 0 4px}
 </style>
@@ -274,12 +276,14 @@ function normalize(d){
 S=normalize(S);
 const LIMIT=4e6, WARN=3.4e6;   // characters of JSON; phones allow ~5M
 let sync='Saved on this device', warned=false;
+function queuePush(){ if(typeof schedulePush==='function') schedulePush(); }
 function save(){
+  S._at=Date.now();
   const s=JSON.stringify(S);
   try { localStorage.setItem('grocery-v1', s); sync='Saved on this device'; }
   catch(e){ sync='Phone storage is full — remove some photos, or export a backup (⚙)'; toast(sync); }
   if(s.length>WARN && !warned){ warned=true; setTimeout(()=>toast('Storage is nearly full. Remove a few of your own photos, or export a backup.'),2400); }
-  setSync(sync);
+  setSync(sync); queuePush();
 }
 const used = () => JSON.stringify(S).length;
 function setSync(t){ sync=t; const el=$('#sync'); if(el) el.textContent=t; }
@@ -328,6 +332,8 @@ function toggleFav(c, pick){
   arr.push(pick); c.choices=c.choices||{}; if(!c.choices[S.store]) c.choices[S.store]=pick; return true;
 }
 // When an item goes on the list, use its top favorite unless the current pick is already a favorite.
+// Adding an item to the list: top favorite if it has any, otherwise no pick (the drawing shows until you choose).
+function applyDefaultPick(c){ if(!c) return; const f=c.favs&&c.favs[S.store]; if(f&&f.length) useFavorite(c); else if(c.choices) delete c.choices[S.store]; }
 function useFavorite(c){ const f=c&&c.favs&&c.favs[S.store]; if(!f||!f.length) return; const cur=c.choices&&c.choices[S.store]; if(cur&&f.some(x=>String(x.id)===String(cur.id))) return; c.choices=c.choices||{}; c.choices[S.store]=f[0]; }
 const searchQuery = (name,note) => name+(note&&!/not a need|bulk|bakery|etc/i.test(note)?' '+note.split(',')[0]:'');
 const CHAINS={KROGER:'Kroger',RALPHS:'Ralphs',FRYS:'Fry’s',KINGSOOPERS:'King Soopers',SMITHS:'Smith’s',FREDMEYER:'Fred Meyer',HARRISTEETER:'Harris Teeter',MARIANOS:'Mariano’s',PICKNSAVE:'Pick ’n Save',DILLONS:'Dillons',QFC:'QFC',CITYMARKET:'City Market',BAKERS:'Baker’s',GERBES:'Gerbes',JAYC:'Jay C',PAYLESS:'Pay Less',FOODSCO:'Foods Co',METROMARKET:'Metro Market',COPPS:'Copps',RULER:'Ruler',FOOD4LESS:'Food 4 Less',OWENS:'Owen’s',HART:'Harts'};
@@ -376,7 +382,7 @@ function addItem(name, extra={}){
   const c=S.cat[key(name)];
   const it=mk(c?c.name:name, extra.note ?? (c?c.note:''), extra.store ?? (c?c.store:''), false, 1, false);
   if(extra.cat||c) it.cat=extra.cat||c.cat;
-  S.list.unshift(it); useFavorite(ensureCat(it)); save(); render(); toast(`Added ${it.name}`);
+  S.list.unshift(it); applyDefaultPick(ensureCat(it)); save(); render(); toast(`Added ${it.name}`);
 }
 let undoSnap=null, tt=null;
 function toast(msg, undo){
@@ -437,7 +443,7 @@ function rowHTML(it){
   const sub = ch ? `${esc(ch.name)}${ch.size?' · '+esc(ch.size):''}` : esc(it.note||'');
   return `<div class="row ${it.done?'done':''}">
     <button class="body" data-act="edit" data-id="${it.id}" style="display:contents">${thumb(it.name,it.cat)}<span class="body"><div class="nm">${esc(it.name)}${it.qty>1?` <span style="color:var(--tomato)">×${it.qty}</span>`:''}</div>${sub?`<div class="sub">${sub}</div>`:''}
-     <div class="tags">${it.star?'<span class="tag star">Must get</span>':''}${ch?(isFav(it.name,ch.id)?'<span class="tag fav">★ Favorite</span>':'<span class="tag pick">Picked</span>'):`<span class="tag" style="cursor:pointer">Choose product</span>`}${it.store&&it.store!==S.store?`<span class="tag">Usually ${esc(it.store)}</span>`:''}</div></span></button>
+     <div class="tags">${it.star?'<span class="tag star">Must get</span>':''}${ch?(isFav(it.name,ch.id)?'<span class="tag favtag">★ Favorite</span>':'<span class="tag pick">Picked</span>'):`<span class="tag" style="cursor:pointer">Choose product</span>`}${it.store&&it.store!==S.store?`<span class="tag">Usually ${esc(it.store)}</span>`:''}</div></span></button>
     <button class="rm" data-act="del" data-id="${it.id}" aria-label="Remove ${esc(it.name)}">${IC.x}</button>
     <button class="chk" data-act="tick" data-id="${it.id}" aria-label="${it.done?'Put back':'Got it'}: ${esc(it.name)}">${IC.check}</button>
   </div>`;
@@ -450,7 +456,8 @@ function renderList(){
   todo.sort((a,b)=>b.star-a.star);
   const sug = Object.values(S.cat).filter(c=>!onList(c.name)).sort((a,b)=>b.count-a.count).slice(0,10);
   let h = `<div class="addbar"><form class="addrow" id="addf"><input id="addi" placeholder="Add an item…" autocomplete="off" aria-label="Add an item"><button aria-label="Add">Add</button></form>
-   ${sug.length?`<div class="sugs" id="sugs">${sug.map(c=>`<button data-act="quick" data-n="${esc(c.name)}">+ ${esc(c.name)}</button>`).join('')}</div>`:''}</div><main>`;
+   ${sug.length||onKroger()?`<div class="sugs" id="sugs">${sug.map(c=>`<button data-act="quick" data-n="${esc(c.name)}">+ ${esc(c.name)}</button>`).join('')}</div>`:''}</div><main>`;
+  if(showInstall()) h+=`<div class="banner"><p><b>Make it an app.</b> Tap <b>Share</b> then <b>Add to Home Screen</b>. It opens full-screen with no browser bars or accidental zooming. In the new app, open ⚙ and link sync code <b>${esc(SYNC?fmtCode(SYNC):'')}</b> to bring this list along.</p><div class="btnrow" style="margin-top:0"><button class="pill p-soft" data-act="nobanner">Got it</button></div></div>`;
   if(!S.list.length) h+=`<div class="empty">${art('trash can','household')}<h2 style="font-size:24px;color:var(--ink)">List’s clear</h2><p>Add items above, restock your last trip, or grab ideas.</p><div class="btnrow"><button class="pill p-tom" data-act="restock">Restock last trip</button><button class="pill p-soft" data-act="tab" data-t="ideas">See ideas</button></div></div>`;
   if(S.list.length && !todo.length && done.length) h+=`<div class="banner"><p><b>Everything here is in the cart.</b> Finish the trip to save it to History and your Catalog — the items stay saved, nothing is lost.</p><button class="pill p-green" data-act="finish">${IC.flag} Finish trip & save</button></div>`;
   order.forEach(k=>{ h+=`<div class="sec"><h2>${CATN[k]}</h2><span>${groups[k].length}</span></div>`+groups[k].map(rowHTML).join(''); });
@@ -461,7 +468,8 @@ function renderList(){
   $('#addf').onsubmit=e=>{e.preventDefault(); const v=$('#addi').value; $('#addi').value=''; addItem(v);};
   $('#addi').oninput=e=>{ const q=key(e.target.value); const el=$('#sugs'); if(!el) return;
     const m=Object.values(S.cat).filter(c=>!onList(c.name)&&(!q||key(c.name).includes(q))).sort((a,b)=>b.count-a.count).slice(0,10);
-    el.innerHTML=m.map(c=>`<button data-act="quick" data-n="${esc(c.name)}">+ ${esc(c.name)}</button>`).join(''); };
+    const raw=e.target.value.trim();
+    el.innerHTML=(raw&&onKroger()?`<button data-act="krogeradd" data-n="${esc(raw)}" style="background:var(--green);color:#fff;border-color:var(--green)">${IC.search.replace('<svg','<svg style="width:15px;height:15px;vertical-align:-2px"')} Find “${esc(raw)}” at Kroger</button>`:'')+m.map(c=>`<button data-act="quick" data-n="${esc(c.name)}">+ ${esc(c.name)}</button>`).join(''); };
 }
 
 /* ---------- ideas ---------- */
@@ -654,14 +662,18 @@ function storeSheet(){
 }
 function settingsSheet(){
   const u=used(); let th='auto'; try{ th=localStorage.getItem('grocery-theme')||'auto' }catch(e){}
-  openSheet(`<h3>Settings & backup</h3><div class="note">Your list, history and catalog are saved on this phone only. Export a backup now and then, or to move to another device.</div>
-   <h4>Backup</h4>
+  openSheet(`<h3>Settings & sync</h3>
+   <h4>Sync</h4><p class="note">Your list is backed up online and shared by every device that uses this code: Safari, the Home Screen app, another phone. ${esc(sync)}.</p>
+   <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:8px 0"><b style="font-size:21px;letter-spacing:.06em">${SYNC?fmtCode(SYNC):'—'}</b><button class="pill p-soft" data-act="copycode">${IC.copy} Copy</button></div>
+   <form class="zipf" id="lf"><input id="lcode" placeholder="Code from another device" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Sync code from another device"><button class="pill p-green">Link</button></form>
+   <h4>Backup file</h4>
    <div class="btnrow"><button class="pill p-green" data-act="export">Export JSON</button><button class="pill p-soft" data-act="import">Import JSON</button></div>
    <input type="file" id="impf" accept="application/json,.json" hidden>
    <p class="note">Storage used: ${(u/1e6).toFixed(2)} MB of about ${LIMIT/1e6} MB${u>WARN?' — nearly full':''}.</p>
    <h4>Appearance</h4>
    <div class="chips">${[['auto','Match phone'],['light','Light'],['dark','Dark']].map(([k,l])=>`<button data-act="theme" data-th="${k}" aria-pressed="${th===k}">${l}</button>`).join('')}</div>
    <p class="note">Product photos and prices come from Kroger. Items from other stores use drawings or your own photos.</p>`);
+  $('#lf').onsubmit=e=>{ e.preventDefault(); linkCode($('#lcode').value); };
   $('#impf').onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(f) importJSON(f); };
 }
 
@@ -701,6 +713,7 @@ document.addEventListener('click',e=>{
   else if(a==='rmphoto'&&it){ const c=ensureCat(it); delete c.photo; save(); render(); editSheet(it); toast('Photo removed'); }
   else if(a==='del'&&it){ const before=snap(); S.list=S.list.filter(i=>i!==it); save(); closeSheet(); render(); toast(`Removed ${it.name} — still in your Catalog`, before); }
   else if(a==='quick') addItem(b.dataset.n);
+  else if(a==='krogeradd'){ addItem(b.dataset.n); const ni=S.list.find(i=>key(i.name)===key(b.dataset.n)); if(ni) variantSheet(ni); }
   else if(a==='addpick'){ const x=CR&&CR[+b.dataset.i]; if(!x) return; const nm=(csName||'').trim()||x.name; const c=catFor(nm,guessCat(nm)); c.choices[S.store]=pickOf(x); addItem(c.name,{cat:c.cat}); c.choices[S.store]=pickOf(x); save(); render(); }
   else if(a==='catfav'){ const x=CR&&CR[+b.dataset.i]; if(!x) return; const nm=(csName||'').trim()||x.name; const c=catFor(nm,guessCat(nm)); const on=toggleFav(c,pickOf(x)); save(); renderCatalog(); toast(on?`★ Saved to ${c.name} favorites`:`Removed from ${c.name} favorites`); }
   else if(a==='fav'&&it){ const x=VR[+b.dataset.i]; if(!x) return; const on=toggleFav(ensureCat(it),pickOf(x)); save(); render(); if(VREDRAW) VREDRAW(); toast(on?`★ Saved to ${it.name} favorites`:`Removed from ${it.name} favorites`); }
@@ -711,6 +724,8 @@ document.addEventListener('click',e=>{
   else if(a==='setstore'){ S.store=b.dataset.s; resetSearches(); save(); closeSheet(); render(); toast('Shopping at '+S.store); }
   else if(a==='copy') copyList();
   else if(a==='settings') settingsSheet();
+  else if(a==='copycode'){ (navigator.clipboard?navigator.clipboard.writeText(fmtCode(SYNC)):Promise.reject()).then(()=>toast('Sync code copied'),()=>toast('Code: '+fmtCode(SYNC))); }
+  else if(a==='nobanner'){ try{localStorage.setItem('grocery-nobanner','1')}catch(e){} render(); }
   else if(a==='export') exportJSON();
   else if(a==='import'){ const f=$('#impf'); if(f){ f.value=''; f.click(); } }
   else if(a==='theme'){ const t=b.dataset.th; if(t==='auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme=t; try{ t==='auto'?localStorage.removeItem('grocery-theme'):localStorage.setItem('grocery-theme',t) }catch(e){} settingsSheet(); }
@@ -718,11 +733,65 @@ document.addEventListener('click',e=>{
   else if(a==='finish') finishTrip();
   else if(a==='clear') clearSheet();
   else if(a==='doclear') clearList();
-  else if(a==='restock'){ const t=S.trips[0]; if(!t){ toast('No past trips yet'); return; } t.items.forEach(i=>{ if(!onList(i.name)){ const n=mk(i.name,i.note||'','',false,1,false); n.cat=i.cat; const c=S.cat[key(i.name)]; if(c){n.store=c.store||'';} S.list.push(n);} }); save(); render(); toast(`Added ${t.items.length} items from ${fmtD(t.date)}`); }
-  else if(a==='readd'){ const t=S.trips.find(x=>x.id===b.dataset.id); if(t){ let n=0; t.items.forEach(i=>{ if(!onList(i.name)){ const x=mk(i.name,i.note||'','',false,1,false); x.cat=i.cat; S.list.push(x); n++; } }); save(); render(); toast(`Added ${n} items`); } }
+  else if(a==='restock'){ const t=S.trips[0]; if(!t){ toast('No past trips yet'); return; } t.items.forEach(i=>{ if(!onList(i.name)){ const n=mk(i.name,i.note||'','',false,1,false); n.cat=i.cat; const c=S.cat[key(i.name)]; if(c){n.store=c.store||'';} applyDefaultPick(c); S.list.push(n);} }); save(); render(); toast(`Added ${t.items.length} items from ${fmtD(t.date)}`); }
+  else if(a==='readd'){ const t=S.trips.find(x=>x.id===b.dataset.id); if(t){ let n=0; t.items.forEach(i=>{ if(!onList(i.name)){ const x=mk(i.name,i.note||'','',false,1,false); x.cat=i.cat; applyDefaultPick(S.cat[key(i.name)]); S.list.push(x); n++; } }); save(); render(); toast(`Added ${n} items`); } }
   else if(a==='tab'){ tab=b.dataset.t; render(); scrollTo(0,0); }
   else if(a==='cf'){ cfilter=b.dataset.c; renderCatalog(); }
 });
+
+/* ---------- sync: one copy online, so every device and the Home Screen app match ---------- */
+const ALPH='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const newCode=()=>Array.from(crypto.getRandomValues(new Uint8Array(12)),x=>ALPH[x%ALPH.length]).join('');
+const fmtCode=c=>String(c||'').replace(/(.{4})(?=.)/g,'$1-');
+let SYNC=null; try{ SYNC=localStorage.getItem('grocery-sync') }catch(e){}
+if(!SYNC){ SYNC=newCode(); try{ localStorage.setItem('grocery-sync',SYNC) }catch(e){} }
+const syncOn=()=>!/REPLACE_ME/.test(API)&&!!SYNC;
+let pushT=null, pushing=false, pushAgain=false, dirty=false;
+function schedulePush(){ if(!syncOn()) return; dirty=true; clearTimeout(pushT); pushT=setTimeout(push,1200); }
+async function push(){
+  if(pushing){ pushAgain=true; return; } pushing=true;
+  try{ const r=await fetch(API+'/sync/'+SYNC,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({at:S._at||Date.now(),data:S})});
+    if(!r.ok){ let j=null; try{j=await r.json()}catch(e){} throw new Error(j&&j.error||'sync failed'); }
+    dirty=false; setSync('Saved and synced'); }
+  catch(e){ setSync(navigator.onLine===false?'Saved on this device · syncs when you’re back online':'Saved on this device · couldn’t sync just now'); }
+  pushing=false; if(pushAgain){ pushAgain=false; push(); }
+}
+function adopt(remote){
+  S=normalize(remote.data); S._at=remote.at;
+  try{ localStorage.setItem('grocery-v1',JSON.stringify(S)) }catch(e){}
+  resetSearches(); render();
+}
+async function pull(){
+  if(!syncOn()) return;
+  try{ const r=await fetch(API+'/sync/'+SYNC,{cache:'no-store'});
+    if(r.status===404){ schedulePush(); return; }
+    if(!r.ok) return;
+    const remote=await r.json();
+    if(remote&&remote.data&&(remote.at||0)>(S._at||0)&&!dirty){ adopt(remote); setSync('Saved and synced'); }
+    else if((S._at||0)>(remote.at||0)) schedulePush();
+    else setSync('Saved and synced');
+  }catch(e){}
+}
+async function linkCode(raw){
+  const code=String(raw||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(code.length!==12){ toast('Sync codes are 12 letters and numbers'); return; }
+  if(code===SYNC){ toast('This device already uses that code'); return; }
+  try{ const r=await fetch(API+'/sync/'+code,{cache:'no-store'});
+    if(r.status===404){ toast('No list found for that code'); return; }
+    if(!r.ok) throw 0;
+    const remote=await r.json();
+    if(!confirm(`Use the synced list (${remote.data.list.length} items, ${(remote.data.trips||[]).length} trips) on this device? This replaces what’s here now.`)) return;
+    const before=snap(); SYNC=code; try{ localStorage.setItem('grocery-sync',code) }catch(e){}
+    adopt(remote); closeSheet(); toast('Linked: this device now shares that list');
+  }catch(e){ toast('Couldn’t reach sync just now. Try again in a moment.'); }
+}
+const standalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+function showInstall(){ if(standalone()) return false; try{ if(localStorage.getItem('grocery-nobanner')) return false }catch(e){} return /iPhone|iPad|Android/i.test(navigator.userAgent); }
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') pull(); else if(dirty){ clearTimeout(pushT); push(); } });
+addEventListener('online',()=>{ if(dirty) push(); });
+if(location.hash.startsWith('#link=')){ const c=location.hash.slice(6); history.replaceState(null,'',location.pathname+location.search); setTimeout(()=>linkCode(c),300); }
+if('serviceWorker' in navigator && location.protocol==='https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+try{ navigator.storage&&navigator.storage.persist&&navigator.storage.persist() }catch(e){}
 
 /* ---------- tabs + render ---------- */
 const TABS=[['list','List',IC.list],['ideas','Ideas',IC.spark],['history','History',IC.clock],['catalog','Catalog',IC.book]];
@@ -732,6 +801,7 @@ function render(){
   ({list:renderList,ideas:renderIdeas,history:renderHistory,catalog:renderCatalog})[tab]();
 }
 render();
+pull();
 }
 </script>
 </body>

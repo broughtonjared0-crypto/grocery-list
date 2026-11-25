@@ -15,6 +15,7 @@ import icon192 from '../../site/icon-192.png';
 import icon512 from '../../site/icon-512.png';
 import iconMask from '../../site/icon-maskable-512.png';
 import touchIcon from '../../site/apple-touch-icon.png';
+import swJs from '../../site/sw.js';
 
 // The app's own files, served from the Worker's URL.
 const SITE = {
@@ -26,6 +27,7 @@ const SITE = {
   '/icon-512.png': [icon512, 'image/png', 86400],
   '/icon-maskable-512.png': [iconMask, 'image/png', 86400],
   '/apple-touch-icon.png': [touchIcon, 'image/png', 86400],
+  '/sw.js': [swJs, 'text/javascript; charset=utf-8', 0],
 };
 
 const DEFAULT_BASE = 'https://api.kroger.com/v1';
@@ -50,14 +52,16 @@ export default {
     if (req.method === 'OPTIONS') {
       return new Response(null, { status: allowed ? 204 : 403, headers: corsHeaders(allowed) });
     }
-    if (req.method !== 'GET' && req.method !== 'HEAD') return json({ error: 'Method not allowed' }, 405, allowed);
+    const isSync = url.pathname.startsWith('/sync/');
+    if (req.method !== 'GET' && req.method !== 'HEAD' && !(isSync && req.method === 'PUT')) return json({ error: 'Method not allowed' }, 405, allowed);
     // Browsers always send Origin on cross-site fetch(); block other sites. <img> loads send none.
     if (origin && !allowed && url.pathname !== '/img') return json({ error: 'Origin not allowed' }, 403, null);
 
     const file = SITE[url.pathname];
-    if (file) return new Response(file[0], { headers: { 'Content-Type': file[1], 'Cache-Control': `public, max-age=${file[2]}` } });
+    if (file && req.method === 'GET') return new Response(file[0], { headers: { 'Content-Type': file[1], 'Cache-Control': file[2] ? `public, max-age=${file[2]}` : 'no-cache' } });
 
     try {
+      if (isSync) return await syncRoute(req, url, env, allowed);
       switch (url.pathname) {
         case '/api': return json({ ok: true, routes: ['/stores?zip=', '/search?q=&locationId=', '/img?u='] }, 200, allowed);
         case '/stores': return await stores(url, env, ctx, allowed);
@@ -131,6 +135,27 @@ async function image(url) {
       'X-Content-Type-Options': 'nosniff',
     },
   });
+}
+
+/* ---------------- sync ---------------- */
+// One JSON document per sync code: { at: <ms of last change>, data: <app state> }. Last write wins.
+const MAX_SYNC = 6 * 1024 * 1024;
+async function syncRoute(req, url, env, allowed) {
+  if (!env.SYNC) throw new HttpError(500, 'Sync storage is not set up on the Worker');
+  const code = url.pathname.slice(6);
+  if (!/^[A-Z2-9]{12}$/.test(code)) throw new HttpError(400, 'Bad sync code');
+  if (req.method === 'PUT') {
+    const text = await req.text();
+    if (text.length > MAX_SYNC) throw new HttpError(413, 'Your list is too big to sync — remove some photos');
+    let body;
+    try { body = JSON.parse(text); } catch { throw new HttpError(400, 'Bad sync data'); }
+    if (!body || typeof body.at !== 'number' || !body.data || !Array.isArray(body.data.list)) throw new HttpError(400, 'Bad sync data');
+    await env.SYNC.put(code, text);
+    return json({ ok: true, at: body.at }, 200, allowed);
+  }
+  const text = await env.SYNC.get(code);
+  if (!text) return json({ error: 'No list saved under that code' }, 404, allowed);
+  return new Response(text, { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...corsHeaders(allowed) } });
 }
 
 /* ---------------- Kroger ---------------- */
@@ -286,7 +311,8 @@ function corsHeaders(origin) {
   const h = { Vary: 'Origin' };
   if (origin) {
     h['Access-Control-Allow-Origin'] = origin;
-    h['Access-Control-Allow-Methods'] = 'GET, OPTIONS';
+    h['Access-Control-Allow-Methods'] = 'GET, PUT, OPTIONS';
+    h['Access-Control-Allow-Headers'] = 'Content-Type';
     h['Access-Control-Max-Age'] = '86400';
   }
   return h;

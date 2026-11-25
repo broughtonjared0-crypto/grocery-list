@@ -12,9 +12,19 @@ globs = ["**/*.html", "**/*.webmanifest", "**/*.svg"]
 fallthrough = true
 
 [[rules]]
+type = "Text"
+globs = ["**/site/sw.js"]
+fallthrough = true
+
+[[rules]]
 type = "Data"
 globs = ["**/*.png"]
 fallthrough = true
+
+# Cloud copy of each user's list, keyed by their sync code.
+[[kv_namespaces]]
+binding = "SYNC"
+id = "c46d5abb5d94424d836b859a7f682966"
 
 [vars]
 # Who may call the API from a browser. "*" stands for any port.
