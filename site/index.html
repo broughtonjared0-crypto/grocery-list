@@ -142,6 +142,14 @@ a.pill{text-decoration:none}
 .loc[aria-pressed=true]{border-color:var(--leaf);box-shadow:0 0 0 3px color-mix(in srgb,var(--leaf) 25%,transparent)}
 .zipf{display:flex;gap:8px;margin-top:12px}.zipf input{flex:1;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:11px 12px;min-height:48px}
 .list-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.v{position:relative;padding:0}
+.v .vb{display:grid;gap:6px;align-content:start;text-align:left;width:100%;height:100%;padding:10px;border-radius:16px}
+.v.on{border-color:var(--leaf);box-shadow:0 0 0 3px color-mix(in srgb,var(--leaf) 25%,transparent)}
+.fav{position:absolute;top:6px;right:6px;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--card) 90%,transparent);color:var(--mute);box-shadow:0 1px 5px rgba(0,0,0,.14)}
+.fav svg,.plus svg{width:22px;height:22px;vertical-align:middle}
+.fav[aria-pressed=true],.plus[aria-pressed=true]{color:#d9a400}
+.tag.fav{background:color-mix(in srgb,var(--lemon) 38%,transparent);color:var(--ink)}
+.mbtns{display:flex;gap:6px}
 .sheet h4{font-family:"Familjen Grotesk",sans-serif;font-size:18px;margin:18px 0 4px}
 </style>
 </head>
@@ -308,6 +316,19 @@ const imgSrc = u => !u ? '' : /^data:image\//.test(u) ? u : /^https:\/\//.test(u
 const money = n => n==null||n===''||!isFinite(n) ? '' : '$'+Number(n).toFixed(2);
 const priceHTML = p => !p||p.price==null ? '' : p.promo&&p.promo<p.price ? `<span class="price"><span class="sale">${money(p.promo)}</span><s>${money(p.price)}</s></span>` : `<span class="price">${money(p.price)}</span>`;
 const pickOf = x => ({id:String(x.productId), upc:x.upc||'', name:x.name, size:x.size||'', brand:x.brand||'', price:x.price??null, promo:x.promo??null, image:x.imageUrl||''});
+const starIcon = on => `<svg viewBox="0 0 24 24" fill="${on?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg>`;
+const favsOf = n => { const c=S.cat[key(n)]; return (c&&c.favs&&c.favs[S.store])||[]; };
+const isFav = (n,id) => favsOf(n).some(f=>String(f.id)===String(id));
+function catFor(name, cat){ const k=key(name); if(!S.cat[k]) S.cat[k]={name,cat:cat||guessCat(name),count:0,last:null,store:'',note:'',choices:{}}; const c=S.cat[k]; c.choices=c.choices||{}; return c; }
+// Favorites are specific products saved under a catalog item, per store. Most recently chosen first.
+function toggleFav(c, pick){
+  c.favs=c.favs||{}; const arr=c.favs[S.store]=c.favs[S.store]||[];
+  const i=arr.findIndex(f=>String(f.id)===String(pick.id));
+  if(i>=0){ arr.splice(i,1); if(!arr.length) delete c.favs[S.store]; return false; }
+  arr.push(pick); c.choices=c.choices||{}; if(!c.choices[S.store]) c.choices[S.store]=pick; return true;
+}
+// When an item goes on the list, use its top favorite unless the current pick is already a favorite.
+function useFavorite(c){ const f=c&&c.favs&&c.favs[S.store]; if(!f||!f.length) return; const cur=c.choices&&c.choices[S.store]; if(cur&&f.some(x=>String(x.id)===String(cur.id))) return; c.choices=c.choices||{}; c.choices[S.store]=f[0]; }
 const searchQuery = (name,note) => name+(note&&!/not a need|bulk|bakery|etc/i.test(note)?' '+note.split(',')[0]:'');
 const CHAINS={KROGER:'Kroger',RALPHS:'Ralphs',FRYS:'Fry’s',KINGSOOPERS:'King Soopers',SMITHS:'Smith’s',FREDMEYER:'Fred Meyer',HARRISTEETER:'Harris Teeter',MARIANOS:'Mariano’s',PICKNSAVE:'Pick ’n Save',DILLONS:'Dillons',QFC:'QFC',CITYMARKET:'City Market',BAKERS:'Baker’s',GERBES:'Gerbes',JAYC:'Jay C',PAYLESS:'Pay Less',FOODSCO:'Foods Co',METROMARKET:'Metro Market',COPPS:'Copps',RULER:'Ruler',FOOD4LESS:'Food 4 Less',OWENS:'Owen’s',HART:'Harts'};
 const chainName = c => CHAINS[String(c||'').toUpperCase().replace(/[^A-Z0-9]/g,'')] || (c?String(c).toLowerCase().replace(/\b\w/g,m=>m.toUpperCase()):'Kroger');
@@ -326,7 +347,7 @@ async function ensureLoc(){
 const STORES0 = ['Kroger','Costco','Meijer','ALDI','Target',"Sam's Club",'Publix','Save A Lot',"BJ's Wholesale Club",'The Fresh Market','Dollar General','Walgreens'];
 
 /* ---------- photos: own photo > Kroger pick > drawing ---------- */
-const choiceFor = n => { const c=S.cat[key(n)]; return c&&c.choices&&c.choices[S.store]||null; };
+const choiceFor = n => { const c=S.cat[key(n)]; return c&&(c.choices&&c.choices[S.store]||c.favs&&c.favs[S.store]&&c.favs[S.store][0])||null; };
 const choiceOf = it => choiceFor(it.name);
 function photoFor(name){ const c=S.cat[key(name)]; if(!c) return ''; if(c.photo) return c.photo; const ch=c.choices&&c.choices[S.store]; return ch&&ch.image?imgSrc(ch.image):''; }
 function thumb(name, cat, src, style){
@@ -351,11 +372,11 @@ const onList = n => S.list.some(i=>key(i.name)===key(n));
 function addItem(name, extra={}){
   name=String(name).trim(); if(!name) return;
   const ex=S.list.find(i=>key(i.name)===key(name));
-  if(ex){ if(ex.done){ex.done=false;} else ex.qty=(ex.qty||1)+1; save(); render(); toast(`${name} is on your list`); return; }
+  if(ex){ if(ex.done){ex.done=false;} else ex.qty=(ex.qty||1)+1; useFavorite(S.cat[key(ex.name)]); save(); render(); toast(`${name} is on your list`); return; }
   const c=S.cat[key(name)];
   const it=mk(c?c.name:name, extra.note ?? (c?c.note:''), extra.store ?? (c?c.store:''), false, 1, false);
   if(extra.cat||c) it.cat=extra.cat||c.cat;
-  S.list.unshift(it); ensureCat(it); save(); render(); toast(`Added ${it.name}`);
+  S.list.unshift(it); useFavorite(ensureCat(it)); save(); render(); toast(`Added ${it.name}`);
 }
 let undoSnap=null, tt=null;
 function toast(msg, undo){
@@ -416,7 +437,7 @@ function rowHTML(it){
   const sub = ch ? `${esc(ch.name)}${ch.size?' · '+esc(ch.size):''}` : esc(it.note||'');
   return `<div class="row ${it.done?'done':''}">
     <button class="body" data-act="edit" data-id="${it.id}" style="display:contents">${thumb(it.name,it.cat)}<span class="body"><div class="nm">${esc(it.name)}${it.qty>1?` <span style="color:var(--tomato)">×${it.qty}</span>`:''}</div>${sub?`<div class="sub">${sub}</div>`:''}
-     <div class="tags">${it.star?'<span class="tag star">Must get</span>':''}${ch?'<span class="tag pick">Picked</span>':`<span class="tag" style="cursor:pointer">Choose product</span>`}${it.store&&it.store!==S.store?`<span class="tag">Usually ${esc(it.store)}</span>`:''}</div></span></button>
+     <div class="tags">${it.star?'<span class="tag star">Must get</span>':''}${ch?(isFav(it.name,ch.id)?'<span class="tag fav">★ Favorite</span>':'<span class="tag pick">Picked</span>'):`<span class="tag" style="cursor:pointer">Choose product</span>`}${it.store&&it.store!==S.store?`<span class="tag">Usually ${esc(it.store)}</span>`:''}</div></span></button>
     <button class="rm" data-act="del" data-id="${it.id}" aria-label="Remove ${esc(it.name)}">${IC.x}</button>
     <button class="chk" data-act="tick" data-id="${it.id}" aria-label="${it.done?'Put back':'Got it'}: ${esc(it.name)}">${IC.check}</button>
   </div>`;
@@ -512,27 +533,31 @@ function renderHistory(){
 }
 
 /* ---------- catalog ---------- */
-let cq='', cfilter='all', CR=null, crState='', crBusy=false;
+let cq='', cfilter='all', CR=null, crState='', crBusy=false, csName='';
 function renderCatalog(){
   const all=Object.values(S.cat);
   const used=CATS.filter(c=>all.some(x=>x.cat===c[0]));
   const q=key(cq);
   let h=`<main><div class="sec"><h2 style="font-size:28px">Catalog</h2><span>${all.length} items</span></div>
-   <form id="cf" style="display:flex;gap:8px"><input class="search" id="cq" placeholder="Search your items or ${esc(S.store)}" value="${esc(cq)}" aria-label="Search"><button class="pill p-green" aria-label="Search ${esc(S.store)}">${IC.search}</button></form>
+   <form id="cf" style="display:flex;gap:8px"><input class="search" id="cq" placeholder="Search your items or ${esc(S.store)}" value="${esc(cq)}" aria-label="Search"><button class="pill p-green" aria-label="Search ${esc(S.store)}">${IC.search}${onKroger()?' Kroger':''}</button></form>
+   <p class="note" style="margin:6px 2px 0">Typing filters your items.${onKroger()?' Tap <b>Kroger</b> to search the store and save products to your Catalog.':''}</p>
    <div class="chips"><button data-act="cf" data-c="all" aria-pressed="${cfilter==='all'}">All</button>${used.map(c=>`<button data-act="cf" data-c="${c[0]}" aria-pressed="${cfilter===c[0]}">${c[1]}</button>`).join('')}</div>`;
   if(CR||crState){
     h+=`<div class="card"><h3 style="font-size:19px">${esc(S.store)} products</h3>${crState?`<div class="${crBusy?'note':'err'}">${esc(crState)}</div>`:''}
-    ${(CR||[]).map((p,i)=>`<div class="mini">${thumb(p.name,guessCat(cq||p.name),imgSrc(p.imageUrl))}<div><div class="nm">${esc(p.name)}</div><div class="sub">${esc([p.brand,p.size].filter(Boolean).join(' · '))}</div>${priceHTML(p)}</div><button class="plus" data-act="addpick" data-i="${i}" aria-label="Add ${esc(p.name)}">+ Add</button></div>`).join('')}</div>`;
+    ${CR&&CR.length?`<div class="field" style="margin:8px 0 4px"><label for="csn">Save to Catalog as</label><input id="csn" value="${esc(csName)}" placeholder="e.g. Bacon"></div><p class="note" style="margin:0 0 4px">★ saves that exact product as a favorite under this name. + List also puts it on your list.</p>`:''}
+    ${(CR||[]).map((p,i)=>{ const fv=isFav(csName,p.productId); return `<div class="mini">${thumb(p.name,guessCat(csName||p.name),imgSrc(p.imageUrl))}<div><div class="nm">${esc(p.name)}</div><div class="sub">${esc([p.brand,p.size].filter(Boolean).join(' · '))}</div>${priceHTML(p)}</div><div class="mbtns"><button class="plus" data-act="catfav" data-i="${i}" aria-pressed="${fv}" aria-label="${fv?'Remove from':'Save to'} Catalog favorites">${starIcon(fv)}</button><button class="plus" data-act="addpick" data-i="${i}" aria-label="Add ${esc(p.name)} to list">+ List</button></div></div>`; }).join('')}</div>`;
   }
   used.filter(c=>cfilter==='all'||cfilter===c[0]).forEach(c=>{
     const items=all.filter(x=>x.cat===c[0]&&(!q||key(x.name).includes(q))).sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name));
     if(!items.length) return;
     h+=`<details class="cat" ${q||cfilter!=='all'?'open':''}><summary>${thumb(items[0].name,c[0])} ${c[1]}<span>${items.length}</span></summary>
-     ${items.map(x=>{const ch=x.choices&&x.choices[S.store]; return miniRow(x.name,x.cat,[x.count?`Bought ${x.count}×`:'Not bought yet',x.last?'last '+fmtD(x.last):'',ch?ch.name:''].filter(Boolean).join(' · '));}).join('')}</details>`;
+     ${items.map(x=>{const ch=x.choices&&x.choices[S.store]; const fv=(x.favs&&x.favs[S.store]||[]).length; return miniRow(x.name,x.cat,[x.count?`Bought ${x.count}×`:'Not bought yet',x.last?'last '+fmtD(x.last):'',fv?`★ ${fv} favorite${fv>1?'s':''}`:ch?ch.name:''].filter(Boolean).join(' · '));}).join('')}</details>`;
   });
   $('#view').innerHTML=h+'</main>';
+  const csn=$('#csn'); if(csn) csn.oninput=e=>{ csName=e.target.value; $('#view').querySelectorAll('[data-act=catfav]').forEach(bt=>{ const x=CR[+bt.dataset.i], f=!!x&&isFav(csName,x.productId); bt.setAttribute('aria-pressed',f); bt.innerHTML=starIcon(f); }); };
   $('#cq').oninput=e=>{ cq=e.target.value; const pos=e.target.selectionStart; renderCatalog(); const i=$('#cq'); i.focus(); try{i.setSelectionRange(pos,pos)}catch(_){} };
   $('#cf').onsubmit=async e=>{ e.preventDefault(); const term=cq.trim(); if(!term) return;
+    const ex=S.cat[key(term)]; csName=ex?ex.name:term.replace(/^\w/,c=>c.toUpperCase());
     if(!onKroger()){ CR=null; crBusy=false; crState=`${S.store} isn’t a Kroger-family store, so there’s nothing to search. Choose a Kroger store from the store button.`; renderCatalog(); return; }
     CR=[]; crBusy=true; crState=`Searching ${S.store}…`; renderCatalog();
     try{ const loc=await ensureLoc(); CR=await api('/search',{q:term,locationId:loc.locationId}); crState=CR.length?'':`Nothing found at ${S.store}. Try simpler words.`; }
@@ -571,7 +596,7 @@ function editSheet(it){
     if(key(nn)!==key(it.name)){ it.name=nn; } it.note=$('#eo').value.trim(); it.cat=$('#ec').value; it.store=$('#es').value; it.qty=q; it.star=$('#est').value==='1';
     const c=ensureCat(it); c.cat=it.cat; c.note=it.note; c.store=it.store; save(); closeSheet(); render(); };
 }
-let VR=[];
+let VR=[], VREDRAW=null;
 async function variantSheet(it, query){
   const ch=choiceOf(it); query = query || searchQuery(it.name,it.note);
   if(!onKroger()){
@@ -589,10 +614,22 @@ async function variantSheet(it, query){
     const loc=await ensureLoc();
     const items=await api('/search',{q:query,locationId:loc.locationId});
     if(SEQ!==mine) return;
-    VR=items;
-    openSheet(head(loc)+(items.length?`<div class="vgrid">${items.map((x,i)=>`<button class="v" data-act="pick" data-id="${it.id}" data-i="${i}" aria-pressed="${!!ch&&String(ch.id)===String(x.productId)}">${thumb(x.name,it.cat,imgSrc(x.imageUrl))}${x.brand?`<span class="brand">${esc(x.brand)}</span>`:''}<span class="nm">${esc(x.name)}</span>${x.size?`<span class="sub">${esc(x.size)}</span>`:''}${priceHTML(x)}</button>`).join('')}</div>`:`<div class="err">Nothing came up at ${esc(S.store)}. Try a simpler search.</div>`)
-      +(ch?`<div class="btnrow"><button class="pill p-soft" data-act="unpick" data-id="${it.id}">Clear my pick</button></div>`:''));
-    bind();
+    let cur=mine;
+    const draw=()=>{
+      const favs=favsOf(it.name), sel=choiceOf(it), c=S.cat[key(it.name)];
+      const fresh=new Map(items.map(x=>[String(x.productId),x]));
+      const favCards=favs.map(f=>fresh.get(String(f.id))||{productId:f.id,upc:f.upc,name:f.name,size:f.size,brand:f.brand,price:f.price,promo:f.promo,imageUrl:f.image});
+      const rest=items.filter(x=>!favs.some(f=>String(f.id)===String(x.productId)));
+      VR=favCards.concat(rest);
+      const card=(x,i)=>{ const fv=isFav(it.name,x.productId); return `<div class="v ${sel&&String(sel.id)===String(x.productId)?'on':''}"><button class="vb" data-act="pick" data-id="${it.id}" data-i="${i}">${thumb(x.name,it.cat,imgSrc(x.imageUrl))}${x.brand?`<span class="brand">${esc(x.brand)}</span>`:''}<span class="nm">${esc(x.name)}</span>${x.size?`<span class="sub">${esc(x.size)}</span>`:''}${priceHTML(x)}</button><button class="fav" data-act="fav" data-id="${it.id}" data-i="${i}" aria-pressed="${fv}" aria-label="${fv?'Remove from':'Save to'} ${esc(it.name)} favorites">${starIcon(fv)}</button></div>`; };
+      cur=openSheet(head(loc)
+        +(favCards.length?`<h4>★ Your ${esc(it.name)} favorites</h4><div class="vgrid">${favCards.map((x,i)=>card(x,i)).join('')}</div>${rest.length?`<h4>More at ${esc(S.store)}</h4>`:''}`:(rest.length?'<p class="note" style="margin-top:10px">Tap ☆ to save favorites. They stay at the top, and your favorite is picked automatically when you add this item.</p>':''))
+        +(rest.length?`<div class="vgrid">${rest.map((x,j)=>card(x,favCards.length+j)).join('')}</div>`:(favCards.length?'':`<div class="err">Nothing came up at ${esc(S.store)}. Try a simpler search.</div>`))
+        +(c&&c.choices&&c.choices[S.store]&&!favs.length?`<div class="btnrow"><button class="pill p-soft" data-act="unpick" data-id="${it.id}">Clear my pick</button></div>`:''));
+      bind();
+    };
+    draw();
+    VREDRAW=()=>{ if(SEQ===cur) draw(); };
   }catch(e){ if(SEQ!==mine) return; openSheet(head(curLoc())+`<div class="err">${esc(e.message)}</div>`); bind(); }
 }
 function storeList(){ const b=(S.stores&&S.stores.length?S.stores:STORES0); return b.includes(S.store)?b:[S.store,...b]; }
@@ -658,13 +695,15 @@ document.addEventListener('click',e=>{
   if(a==='tick'&&it){ it.done=!it.done; save(); render(); }
   else if(a==='edit'&&it) editSheet(it);
   else if(a==='variants'&&it) variantSheet(it);
-  else if(a==='pick'&&it){ const x=VR[+b.dataset.i]; if(!x) return; const c=ensureCat(it); c.choices=c.choices||{}; c.choices[S.store]=pickOf(x); save(); closeSheet(); render(); toast('Picked for '+S.store); }
+  else if(a==='pick'&&it){ const x=VR[+b.dataset.i]; if(!x) return; const c=ensureCat(it); c.choices=c.choices||{}; c.choices[S.store]=pickOf(x); const fa=c.favs&&c.favs[S.store]; if(fa){ const k=fa.findIndex(f=>String(f.id)===String(x.productId)); if(k>0) fa.unshift(fa.splice(k,1)[0]); } save(); closeSheet(); render(); toast('Picked for '+S.store); }
   else if(a==='unpick'&&it){ const c=ensureCat(it); if(c.choices) delete c.choices[S.store]; save(); closeSheet(); render(); }
   else if(a==='photo'&&it){ const f=$('#phf'); if(f){ f.value=''; f.click(); } }
   else if(a==='rmphoto'&&it){ const c=ensureCat(it); delete c.photo; save(); render(); editSheet(it); toast('Photo removed'); }
   else if(a==='del'&&it){ const before=snap(); S.list=S.list.filter(i=>i!==it); save(); closeSheet(); render(); toast(`Removed ${it.name} — still in your Catalog`, before); }
   else if(a==='quick') addItem(b.dataset.n);
-  else if(a==='addpick'){ const x=CR&&CR[+b.dataset.i]; if(!x) return; const cat=guessCat(cq||x.name); const nm=cq.trim()?cq.trim().replace(/^\w/,c=>c.toUpperCase()):x.name; addItem(nm,{cat}); const c=S.cat[key(nm)]; if(c){ c.choices=c.choices||{}; c.choices[S.store]=pickOf(x); save(); render(); } }
+  else if(a==='addpick'){ const x=CR&&CR[+b.dataset.i]; if(!x) return; const nm=(csName||'').trim()||x.name; const c=catFor(nm,guessCat(nm)); c.choices[S.store]=pickOf(x); addItem(c.name,{cat:c.cat}); c.choices[S.store]=pickOf(x); save(); render(); }
+  else if(a==='catfav'){ const x=CR&&CR[+b.dataset.i]; if(!x) return; const nm=(csName||'').trim()||x.name; const c=catFor(nm,guessCat(nm)); const on=toggleFav(c,pickOf(x)); save(); renderCatalog(); toast(on?`★ Saved to ${c.name} favorites`:`Removed from ${c.name} favorites`); }
+  else if(a==='fav'&&it){ const x=VR[+b.dataset.i]; if(!x) return; const on=toggleFav(ensureCat(it),pickOf(x)); save(); render(); if(VREDRAW) VREDRAW(); toast(on?`★ Saved to ${it.name} favorites`:`Removed from ${it.name} favorites`); }
   else if(a==='saleadd'){ const x=SALE&&SALE[+b.dataset.i]; if(!x) return; addItem(x.item); const c=S.cat[key(x.item)]; if(c){ c.choices=c.choices||{}; if(!c.choices[S.store]) c.choices[S.store]=pickOf(x.p); save(); render(); } }
   else if(a==='sales') runSales();
   else if(a==='store') storeSheet();
