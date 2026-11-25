@@ -672,7 +672,7 @@ async function productSheet(x, k){
     const imgs=d&&d.images&&d.images.length?d.images.map(i=>i.url):(x.imageUrl?[imgSrc(x.imageUrl)]:[]);
     const stock={HIGH:['In stock','good'],LOW:['Low stock','warn'],TEMPORARILY_OUT_OF_STOCK:['Out of stock','warn']}[d&&d.stock];
     const chips=[]; if(stock) chips.push(`<span class="${stock[1]}">${stock[0]}</span>`);
-    if(d&&d.aisle&&d.aisle.number) chips.push(`<span>Aisle ${esc(d.aisle.number)}${d.aisle.description?' · '+esc(titleCase(d.aisle.description)):''}${d.aisle.shelf?' · shelf '+esc(d.aisle.shelf):''}</span>`);
+    if(d&&d.aisle&&d.aisle.number) chips.push(`<span>Aisle ${esc(d.aisle.number)}${d.aisle.description&&!/^\s*aisle\b/i.test(d.aisle.description)&&d.aisle.description.trim()!==d.aisle.number?' · '+esc(titleCase(d.aisle.description)):''}${d.aisle.shelf?' · shelf '+esc(d.aisle.shelf):''}</span>`);
     if(d&&d.temperature&&d.temperature!=='Ambient') chips.push(`<span>${esc(d.temperature)}</span>`);
     if(d&&d.organic) chips.push('<span class="good">Organic</span>'); if(d&&d.snap) chips.push('<span>SNAP eligible</span>');
     const f=d&&d.fulfillment, fl=f?[['inStore','In store'],['curbside','Pickup'],['delivery','Delivery'],['shipToHome','Ships']].filter(([k2])=>f[k2]).map(z=>z[1]):[];
