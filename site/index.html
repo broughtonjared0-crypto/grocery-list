@@ -158,6 +158,15 @@ a.pill{text-decoration:none}
 .fav[aria-pressed=true],.plus[aria-pressed=true]{color:#d9a400}
 .tag.favtag{background:color-mix(in srgb,var(--lemon) 38%,transparent);color:var(--ink)}
 .mbtns{display:flex;gap:6px}
+.vadd{margin:0 10px 10px;min-height:40px}
+.gal{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;margin:6px -16px 10px;padding:0 16px;scrollbar-width:none;touch-action:pan-x pan-y}
+.gal img{flex:none;width:76%;aspect-ratio:1;object-fit:contain;background:#fff;border-radius:18px;scroll-snap-align:center;box-shadow:inset 0 0 0 1px rgba(10,40,25,.08)}
+.dchips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.dchips span{font-size:13px;font-weight:700;padding:4px 10px;border-radius:99px;background:var(--soft)}
+.dchips .good{background:color-mix(in srgb,var(--leaf) 18%,transparent);color:var(--leaf)}
+.dchips .warn{background:color-mix(in srgb,var(--tomato) 15%,transparent);color:var(--tomato)}
+.stars{color:#d9a400;letter-spacing:1px}
+.ntab{width:100%;border-collapse:collapse;font-size:14.5px}.ntab td{padding:7px 0;border-bottom:1px solid var(--line)}.ntab td+td{text-align:right;color:var(--mute);white-space:nowrap}
 .sheet h4{font-family:"Familjen Grotesk",sans-serif;font-size:18px;margin:18px 0 4px}
 </style>
 </head>
@@ -320,7 +329,7 @@ async function api(path, params){
   finally{ clearTimeout(t); }
   let j=null; try{ j=await r.json() }catch(e){}
   if(!r.ok) throw new Error((j&&j.error)||`Kroger search had a problem (${r.status}).`);
-  return Array.isArray(j)?j:[];
+  return j==null?[]:j;
 }
 const imgSrc = u => !u ? '' : /^data:image\//.test(u) ? u : /^https:\/\//.test(u) ? API+'/img?u='+encodeURIComponent(u) : '';
 const money = n => n==null||n===''||!isFinite(n) ? '' : '$'+Number(n).toFixed(2);
@@ -645,13 +654,57 @@ function editSheet(it){
     if(key(nn)!==key(it.name)){ it.name=nn; } it.note=$('#eo').value.trim(); it.cat=$('#ec').value; it.store=$('#es').value; it.qty=q; it.star=$('#est').value==='1';
     const c=ensureCat(it); c.cat=it.cat; c.note=it.note; c.store=it.store; save(); closeSheet(); render(); };
 }
-let VR=[], VREDRAW=null, FR=[], FREDRAW=null;
+let VR=[], VREDRAW=null, FR=[], FREDRAW=null, favQ='', DP=null;
+function addProductToList(c, x){
+  const pk=pickOf(x); c.choices=c.choices||{};
+  if(onList(c.name)){ const li=S.list.find(i=>key(i.name)===key(c.name)); if(li) li.done=false; c.choices[S.store]=pk; save(); closeSheet(); render(); toast(`${c.name} on your list: ${x.name}`); }
+  else { addItem(c.name,{cat:c.cat}); c.choices[S.store]=pk; save(); closeSheet(); render(); toast(`Added ${c.name}: ${x.name}`); }
+}
+const NUT=['Calories','Total Fat','Saturated Fat','Trans Fat','Cholesterol','Sodium','Total Carbohydrate','Dietary Fiber','Sugar','Total Sugars','Added Sugars','Protein','Vitamin D','Calcium','Iron','Potassium'];
+const titleCase=t=>String(t||'').toLowerCase().replace(/\b\w/g,m=>m.toUpperCase());
+// Product details: rating, price, stock, aisle, nutrition, every photo.
+async function productSheet(x, k){
+  const c=S.cat[k]; if(!c) return;
+  DP={x,k,d:null,err:''};
+  const draw=()=>{
+    const d=DP.d, p=d||x, fv=isFav(c.name,x.productId), loc=curLoc();
+    const imgs=d&&d.images&&d.images.length?d.images.map(i=>i.url):(x.imageUrl?[imgSrc(x.imageUrl)]:[]);
+    const stock={HIGH:['In stock','good'],LOW:['Low stock','warn'],TEMPORARILY_OUT_OF_STOCK:['Out of stock','warn']}[d&&d.stock];
+    const chips=[]; if(stock) chips.push(`<span class="${stock[1]}">${stock[0]}</span>`);
+    if(d&&d.aisle&&d.aisle.number) chips.push(`<span>Aisle ${esc(d.aisle.number)}${d.aisle.description?' · '+esc(titleCase(d.aisle.description)):''}${d.aisle.shelf?' · shelf '+esc(d.aisle.shelf):''}</span>`);
+    if(d&&d.temperature&&d.temperature!=='Ambient') chips.push(`<span>${esc(d.temperature)}</span>`);
+    if(d&&d.organic) chips.push('<span class="good">Organic</span>'); if(d&&d.snap) chips.push('<span>SNAP eligible</span>');
+    const f=d&&d.fulfillment, fl=f?[['inStore','In store'],['curbside','Pickup'],['delivery','Delivery'],['shipToHome','Ships']].filter(([k2])=>f[k2]).map(z=>z[1]):[];
+    const n=d&&d.nutrition, nut=n?n.nutrients.slice().sort((a,b)=>((NUT.indexOf(a.name)+1)||99)-((NUT.indexOf(b.name)+1)||99)):[];
+    const r=p.rating, full=r?Math.round(r):0;
+    DP.seq=openSheet(`<button class="pill p-soft" data-act="dback" style="min-height:40px;padding:0 14px">‹ ${esc(c.name)} options</button>
+     ${imgs.length?`<div class="gal">${imgs.map(u=>`<img src="${esc(u)}" alt="" loading="lazy" onerror="this.remove()">`).join('')}</div>`:`<div style="width:120px;margin:10px 0">${thumb(x.name,c.cat,'')}</div>`}
+     ${p.brand?`<div class="brand" style="font-size:12.5px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:.03em">${esc(p.brand)}</div>`:''}
+     <h3 style="font-size:22px;margin-top:2px">${esc(p.name)}</h3>
+     <div class="note">${esc([p.size,d&&d.netWeight&&!String(p.size).includes(d.netWeight)?'net '+d.netWeight:''].filter(Boolean).join(' · '))}</div>
+     <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-top:8px">${priceHTML(p)||'<span class="note">No price at this store</span>'}${d&&d.promoEnds?`<span class="note">Sale ends ${esc(fmtD(d.promoEnds))}</span>`:''}</div>
+     ${r?`<div style="margin-top:6px"><span class="stars" aria-hidden="true">${'★'.repeat(full)}${'☆'.repeat(5-full)}</span> <b>${r.toFixed(1)}</b> <span class="note">· ${p.reviews||0} review${p.reviews===1?'':'s'}</span></div>`:''}
+     ${chips.length?`<div class="dchips">${chips.join('')}</div>`:''}
+     ${fl.length?`<div class="note">Available: ${esc(fl.join(' · '))}${loc?' at '+esc(locLabel(loc)):''}</div>`:''}
+     ${!d&&!DP.err?'<div class="skel" style="height:120px;margin-top:12px"></div>':''}${DP.err?`<div class="err">${esc(DP.err)}</div>`:''}
+     <div class="btnrow"><button class="pill p-tom" data-act="dadd">+ Add to list</button><button class="pill p-soft" data-act="dfav" aria-pressed="${fv}">${starIcon(fv)} ${fv?'Favorite':'Make favorite'}</button></div>
+     ${n&&(nut.length||n.ingredients)?`<div class="card" style="margin-top:14px"><h3 style="font-size:18px">Nutrition</h3><div class="note">${esc([n.servingSize?'Serving '+n.servingSize:'',n.servings?(/about/i.test(n.servings)?'about '+parseFloat(n.servings):n.servings)+' servings':''].filter(Boolean).join(' · '))}</div>
+       ${nut.length?`<table class="ntab">${nut.map(z=>`<tr><td>${esc(z.name)}</td><td>${esc(z.quantity)}${esc(z.unit&&z.unit!=='cal'?' '+z.unit:'')}${z.dv!=null?` · ${esc(z.dv)}%`:''}</td></tr>`).join('')}</table>`:''}
+       ${n.ingredients?`<details style="margin-top:8px"><summary style="font-weight:700;cursor:pointer;min-height:40px;display:flex;align-items:center">Ingredients</summary><p class="note" style="margin:0">${esc(n.ingredients)}</p></details>`:''}</div>`:''}
+     ${d&&(d.countryOrigin||d.categories.length)?`<p class="note">${esc([d.categories.join(', '),d.countryOrigin?'Made in '+titleCase(d.countryOrigin):''].filter(Boolean).join(' · '))}</p>`:''}
+     ${d&&d.pageUrl?`<a class="link" href="${esc(d.pageUrl)}" target="_blank" rel="noopener">View on Kroger.com ↗</a>`:''}`);
+  };
+  DP.redraw=()=>{ if(SEQ===DP.seq) draw(); };
+  draw(); const mine=DP.seq, loc=curLoc();
+  try{ const d=await api('/product',{id:x.productId,locationId:loc?loc.locationId:''}); if(SEQ!==mine||!DP||DP.x!==x) return; DP.d=d; draw(); }
+  catch(e){ if(SEQ!==mine||!DP||DP.x!==x) return; DP.err=e.message; draw(); }
+}
 // Catalog: browse Kroger for an item and star favorites. Doesn't change what's picked on the list.
 async function favSheet(k, query){
   const c=S.cat[k]; if(!c) return;
-  query=query||searchQuery(c.name,c.note);
+  query=query||searchQuery(c.name,c.note); favQ=query;
   if(!onKroger()){ openSheet(`<h3>${esc(c.name)}</h3><div class="err">Products come from Kroger-family stores. Choose one from the store button first.</div><div class="btnrow"><button class="pill p-tom" data-act="store">Choose a Kroger store</button><button class="pill p-soft" data-act="catdel" data-k="${esc(k)}" style="color:var(--tomato)">Remove from Catalog</button></div>`); return; }
-  const head=l=>`<h3>Choose ${esc(c.name)}</h3><div class="note">At ${esc(S.store)}${l?' · '+esc(locLabel(l)):''}. Tap a product to add it to your list. Tap ☆ to keep it as a favorite: favorites stay on top, and your top one is used when you add ${esc(c.name)}.</div>
+  const head=l=>`<h3>Choose ${esc(c.name)}</h3><div class="note">At ${esc(S.store)}${l?' · '+esc(locLabel(l)):''}. Tap a product for details, or + Add to list. Tap ☆ to keep it as a favorite: favorites stay on top, and your top one is used when you add ${esc(c.name)}.</div>
    <form id="ff" style="display:flex;gap:8px;margin-top:12px"><input class="search" id="fq" value="${esc(query)}" aria-label="Search products"><button class="pill p-green" aria-label="Search">${IC.search}</button></form>`;
   const bind=()=>{ const f=$('#ff'); if(f) f.onsubmit=e=>{e.preventDefault(); favSheet(k,$('#fq').value.trim()||c.name);} };
   let cur=openSheet(head(curLoc())+`<div class="vgrid">${'<div class="skel"></div>'.repeat(4)}</div>`); const mine=cur;
@@ -666,7 +719,7 @@ async function favSheet(k, query){
       const favCards=favs.map(f=>fresh.get(String(f.id))||{productId:f.id,upc:f.upc,name:f.name,size:f.size,brand:f.brand,price:f.price,promo:f.promo,imageUrl:f.image});
       const rest=items.filter(x=>!favs.some(f=>String(f.id)===String(x.productId)));
       FR=favCards.concat(rest);
-      const card=(x,i)=>{ const fv=favs.some(f=>String(f.id)===String(x.productId)); return `<div class="v ${fv?'on':''}"><button class="vb" data-act="cadd" data-k="${esc(k)}" data-i="${i}" aria-label="Add ${esc(x.name)} to your list">${thumb(x.name,c.cat,imgSrc(x.imageUrl))}${x.brand?`<span class="brand">${esc(x.brand)}</span>`:''}<span class="nm">${esc(x.name)}</span>${x.size?`<span class="sub">${esc(x.size)}</span>`:''}${priceHTML(x)}<span class="plus" style="display:grid;place-items:center;min-height:38px;margin-top:2px">${onList(c.name)&&choiceOf({name:c.name})&&String(choiceOf({name:c.name}).id)===String(x.productId)?'✓ On list':'+ Add to list'}</span></button><button class="fav" data-act="cfav" data-k="${esc(k)}" data-i="${i}" aria-pressed="${fv}" aria-label="${fv?'Remove from':'Save to'} favorites">${starIcon(fv)}</button></div>`; };
+      const card=(x,i)=>{ const fv=favs.some(f=>String(f.id)===String(x.productId)); return `<div class="v ${fv?'on':''}"><button class="vb" data-act="pdetail" data-k="${esc(k)}" data-i="${i}" aria-label="Details for ${esc(x.name)}">${thumb(x.name,c.cat,imgSrc(x.imageUrl))}${x.brand?`<span class="brand">${esc(x.brand)}</span>`:''}<span class="nm">${esc(x.name)}</span>${x.size?`<span class="sub">${esc(x.size)}</span>`:''}${priceHTML(x)}${x.rating?`<span class="sub"><span class="stars">★</span> ${x.rating.toFixed(1)} (${x.reviews||0})</span>`:''}</button><button class="plus vadd" data-act="cadd" data-k="${esc(k)}" data-i="${i}" aria-label="Add ${esc(x.name)} to your list">${onList(c.name)&&choiceOf({name:c.name})&&String(choiceOf({name:c.name}).id)===String(x.productId)?'✓ On list':'+ Add to list'}</button><button class="fav" data-act="cfav" data-k="${esc(k)}" data-i="${i}" aria-pressed="${fv}" aria-label="${fv?'Remove from':'Save to'} favorites">${starIcon(fv)}</button></div>`; };
       cur=openSheet(head(loc)
         +(favCards.length?`<h4>★ Your favorites</h4><div class="vgrid">${favCards.map((x,i)=>card(x,i)).join('')}</div>${rest.length?`<h4>More at ${esc(S.store)}</h4>`:''}`:'')
         +(rest.length?`<div class="vgrid">${rest.map((x,j)=>card(x,favCards.length+j)).join('')}</div>`:(favCards.length?'':`<div class="err">Nothing came up at ${esc(S.store)}. Try a simpler search.</div>`))
@@ -793,9 +846,11 @@ document.addEventListener('click',e=>{
   else if(a==='sales') runSales();
   else if(a==='favsheet') favSheet(b.dataset.k);
   else if(a==='crclose'){ CR=null; crState=''; crBusy=false; cq=''; renderCatalog(); }
-  else if(a==='cadd'){ const x=FR[+b.dataset.i], c=S.cat[b.dataset.k]; if(!x||!c) return; const pk=pickOf(x);
-    if(onList(c.name)){ const li=S.list.find(i=>key(i.name)===key(c.name)); if(li) li.done=false; c.choices=c.choices||{}; c.choices[S.store]=pk; save(); closeSheet(); render(); toast(`${c.name} on your list: ${x.name}`); }
-    else { addItem(c.name,{cat:c.cat}); c.choices=c.choices||{}; c.choices[S.store]=pk; save(); closeSheet(); render(); toast(`Added ${c.name}: ${x.name}`); } }
+  else if(a==='pdetail'){ const x=FR[+b.dataset.i]; if(x) productSheet(x,b.dataset.k); }
+  else if(a==='dback'){ if(DP) favSheet(DP.k,favQ); }
+  else if(a==='dadd'){ const c=DP&&S.cat[DP.k]; if(c) addProductToList(c,DP.x); }
+  else if(a==='dfav'){ const c=DP&&S.cat[DP.k]; if(!c) return; const on=toggleFav(c,pickOf(DP.x),false); save(); if(tab==='catalog') renderCatalog(); DP.redraw(); toast(on?`★ Saved to ${c.name} favorites`:`Removed from ${c.name} favorites`); }
+  else if(a==='cadd'){ const x=FR[+b.dataset.i], c=S.cat[b.dataset.k]; if(!x||!c) return; addProductToList(c,x); }
   else if(a==='catdel'){ const c=S.cat[b.dataset.k]; if(!c) return; const before=snap(); delete S.cat[b.dataset.k]; save(); closeSheet(); render(); toast(`Removed ${c.name} from your Catalog`, before); }
   else if(a==='cfav'){ const x=FR[+b.dataset.i], c=S.cat[b.dataset.k]; if(!x||!c) return; const on=toggleFav(c,pickOf(x),false); save(); if(FREDRAW) FREDRAW(); if(tab==='catalog') renderCatalog(); toast(on?`★ Saved to ${c.name} favorites`:`Removed from ${c.name} favorites`); }
   else if(a==='store') storeSheet();

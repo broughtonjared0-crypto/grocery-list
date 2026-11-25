@@ -66,6 +66,7 @@ export default {
         case '/api': return json({ ok: true, routes: ['/stores?zip=', '/search?q=&locationId=', '/img?u='] }, 200, allowed);
         case '/stores': return await stores(url, env, ctx, allowed);
         case '/search': return await search(url, env, ctx, allowed);
+        case '/product': return await product(url, env, ctx, allowed);
         case '/img': return await image(url);
         default: return json({ error: 'Not found' }, 404, allowed);
       }
@@ -103,13 +104,68 @@ async function search(url, env, ctx, allowed) {
   let limit = parseInt(url.searchParams.get('limit') || '20', 10);
   limit = Math.min(50, Math.max(1, Number.isFinite(limit) ? limit : 20));
 
-  const data = await cached(`search:${loc}:${limit}:${q.toLowerCase()}`, SEARCH_TTL, url, ctx, async () => {
+  const data = await cached(`search2:${loc}:${limit}:${q.toLowerCase()}`, SEARCH_TTL, url, ctx, async () => {
     const params = { 'filter.term': q, 'filter.limit': String(limit) };
     if (loc) params['filter.locationId'] = loc;
     const r = await kroger(env, ctx, '/products', params);
     return (r.data || []).map(p => mapProduct(p, url.origin)).filter(p => p.productId && p.name);
   });
   return json(data, 200, allowed, SEARCH_TTL);
+}
+
+// Full details for one product: rating, stock, aisle, nutrition, all photos.
+async function product(url, env, ctx, allowed) {
+  const id = (url.searchParams.get('id') || '').trim();
+  if (!/^[0-9A-Za-z]{1,20}$/.test(id)) throw new HttpError(400, 'Bad product id');
+  const loc = (url.searchParams.get('locationId') || '').trim();
+  if (loc && !/^[A-Za-z0-9]{1,16}$/.test(loc)) throw new HttpError(400, 'Bad locationId');
+  const data = await cached(`product2:${loc}:${id}`, SEARCH_TTL, url, ctx, async () => {
+    const r = await kroger(env, ctx, `/products/${encodeURIComponent(id)}`, loc ? { 'filter.locationId': loc } : {});
+    const p = r.data;
+    if (!p) throw new HttpError(404, 'Kroger has no details for that product');
+    return mapDetails(p, url.origin);
+  });
+  return json(data, 200, allowed, SEARCH_TTL);
+}
+
+const UNIT = { GRM: 'g', MGM: 'mg', MC: 'mcg', ME: 'mcg', E14: 'cal', KCAL: 'cal', MLT: 'ml', LTR: 'L', ONZ: 'oz' };
+function mapDetails(p, origin) {
+  const base = mapProduct(p, origin);
+  const item = (Array.isArray(p.items) && p.items[0]) || {};
+  const aisle = (p.aisleLocations || [])[0];
+  const n = (p.nutritionInformation || [])[0];
+  const proxied = u => `${origin}/img?u=${encodeURIComponent(u)}`;
+  const images = (p.images || []).map(i => {
+    const sz = (i.sizes || []).find(x => x.size === 'large') || (i.sizes || []).find(x => x.size === 'xlarge') || (i.sizes || [])[0];
+    return sz && sz.url ? { perspective: i.perspective || '', featured: !!i.featured, url: proxied(sz.url) } : null;
+  }).filter(Boolean).sort((a, b) => (b.featured - a.featured) || ((b.perspective === 'front') - (a.perspective === 'front')));
+  const rr = p.ratingsAndReviews || {};
+  const unit = u => (u && (u.abbreviation || UNIT[u.code] || (u.name || '').toLowerCase())) || '';
+  return {
+    ...base,
+    soldBy: item.soldBy || '',
+    promoEnds: base.promo && item.price && item.price.expirationDate && !/^9999/.test(item.price.expirationDate.value) ? item.price.expirationDate.value.slice(0, 10) : null,
+    stock: (item.inventory && item.inventory.stockLevel) || null,
+    fulfillment: item.fulfillment || null,
+    rating: num(rr.averageOverallRating),
+    reviews: num(rr.totalReviewCount),
+    aisle: aisle ? { description: aisle.description || '', number: aisle.number || '', side: aisle.side || '', shelf: aisle.shelfNumber || '', bay: aisle.bayNumber || '' } : null,
+    categories: p.categories || [],
+    countryOrigin: p.countryOrigin || '',
+    temperature: (p.temperature && p.temperature.indicator) || '',
+    snap: !!p.snapEligible,
+    organic: !!p.organicClaimName && p.organicClaimName !== 'NO',
+    netWeight: (p.itemInformation && p.itemInformation.netWeight) ? String(p.itemInformation.netWeight).replace(/\s*\[([a-z]+?)(_av)?\]/i, ' $1') : '',
+    pageUrl: p.productPageURI ? 'https://www.kroger.com' + String(p.productPageURI).split('?')[0] : null,
+    images,
+    nutrition: n ? {
+      servingSize: n.servingSize ? `${n.servingSize.quantity ?? ''} ${unit(n.servingSize.unitOfMeasure)}`.trim() : '',
+      servings: n.servingsPerPackage ? (n.servingsPerPackage.description || String(n.servingsPerPackage.value || '')) : '',
+      ingredients: n.ingredientStatement || '',
+      score: n.nutritionalRating != null ? String(n.nutritionalRating) : '',
+      nutrients: (n.nutrients || []).filter(x => x.quantity != null).map(x => ({ name: x.displayName || x.description || x.code, quantity: x.quantity, unit: unit(x.unitOfMeasure), dv: x.percentDailyIntake ?? null })),
+    } : null,
+  };
 }
 
 async function image(url) {
@@ -166,7 +222,7 @@ async function kroger(env, ctx, path, params) {
   for (let attempt = 0; attempt < 2; attempt++) {
     const t = await getToken(env, ctx, attempt > 0);
     const r = await fetch(u, { headers: { Authorization: `Bearer ${t}`, Accept: 'application/json' } });
-    if (r.status === 401 && attempt === 0) { token = null; continue; }   // token revoked/expired early: refresh once
+    if ((r.status === 401 || r.status === 403) && attempt === 0) { token = null; continue; }   // token revoked/expired early, or a passing Kroger hiccup: refresh once
     if (r.status === 400) throw new HttpError(400, 'Kroger didn’t accept that search. Try simpler words.');
     if (r.status === 429) throw new HttpError(429, 'Kroger is busy (daily limit). Try again later.');
     if (!r.ok) throw new HttpError(502, `Kroger answered ${r.status}`);
@@ -262,6 +318,8 @@ function mapProduct(p, origin) {
     promo,
     image: imageUrl ? `${origin}/img?u=${encodeURIComponent(imageUrl)}` : null,
     imageUrl,
+    rating: num(p.ratingsAndReviews && p.ratingsAndReviews.averageOverallRating),
+    reviews: num(p.ratingsAndReviews && p.ratingsAndReviews.totalReviewCount),
   };
 }
 
