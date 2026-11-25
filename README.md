@@ -1,5 +1,7 @@
 # Groceries
 
+**Live app:** https://groceries-api.groceries-api.workers.dev/ (the Worker serves the app and the API).
+
 A one-file mobile grocery list (`site/index.html`) with real product photos and prices from Kroger, hosted on GitHub Pages. A small Cloudflare Worker (`worker/`) holds the Kroger API keys and proxies searches and images, so no keys ever reach the browser.
 
 ```
@@ -10,7 +12,7 @@ tools/     make-icons.cjs (re-renders the PNG icons from site/icon.svg)
 
 ## Everyday updates
 
-- **App:** edit `site/index.html`, commit, push. GitHub Actions republishes the site in about a minute.
+- **App:** edit `site/index.html`, then `cd worker && npx wrangler deploy` (the app is bundled into the Worker). Commit and push to keep GitHub in sync.
 - **Worker:** edit `worker/src/index.js`, then `cd worker && npx wrangler deploy`.
 
 ## One-time setup

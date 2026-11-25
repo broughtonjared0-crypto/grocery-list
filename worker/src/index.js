@@ -8,6 +8,26 @@
 // Vars: ALLOWED_ORIGIN (comma-separated; "*" may stand for a port, e.g. http://localhost:*).
 //       KROGER_BASE (optional, only for local tests against a mock).
 
+import indexHtml from '../../site/index.html';
+import manifest from '../../site/manifest.webmanifest';
+import iconSvg from '../../site/icon.svg';
+import icon192 from '../../site/icon-192.png';
+import icon512 from '../../site/icon-512.png';
+import iconMask from '../../site/icon-maskable-512.png';
+import touchIcon from '../../site/apple-touch-icon.png';
+
+// The app's own files, served from the Worker's URL.
+const SITE = {
+  '/': [indexHtml, 'text/html; charset=utf-8', 300],
+  '/index.html': [indexHtml, 'text/html; charset=utf-8', 300],
+  '/manifest.webmanifest': [manifest, 'application/manifest+json', 86400],
+  '/icon.svg': [iconSvg, 'image/svg+xml', 86400],
+  '/icon-192.png': [icon192, 'image/png', 86400],
+  '/icon-512.png': [icon512, 'image/png', 86400],
+  '/icon-maskable-512.png': [iconMask, 'image/png', 86400],
+  '/apple-touch-icon.png': [touchIcon, 'image/png', 86400],
+};
+
 const DEFAULT_BASE = 'https://api.kroger.com/v1';
 const SCOPE = 'product.compact';
 const SEARCH_TTL = 6 * 3600;   // seconds
@@ -34,9 +54,12 @@ export default {
     // Browsers always send Origin on cross-site fetch(); block other sites. <img> loads send none.
     if (origin && !allowed && url.pathname !== '/img') return json({ error: 'Origin not allowed' }, 403, null);
 
+    const file = SITE[url.pathname];
+    if (file) return new Response(file[0], { headers: { 'Content-Type': file[1], 'Cache-Control': `public, max-age=${file[2]}` } });
+
     try {
       switch (url.pathname) {
-        case '/': return json({ ok: true, routes: ['/stores?zip=', '/search?q=&locationId=', '/img?u='] }, 200, allowed);
+        case '/api': return json({ ok: true, routes: ['/stores?zip=', '/search?q=&locationId=', '/img?u='] }, 200, allowed);
         case '/stores': return await stores(url, env, ctx, allowed);
         case '/search': return await search(url, env, ctx, allowed);
         case '/img': return await image(url);

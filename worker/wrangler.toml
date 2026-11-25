@@ -3,10 +3,22 @@ main = "src/index.js"
 compatibility_date = "2025-11-01"
 workers_dev = true
 preview_urls = false
+keep_vars = true   # never wipe variables added in the Cloudflare dashboard
+
+# The app (site/) is bundled into this Worker, so it is also served at the Worker's own URL.
+[[rules]]
+type = "Text"
+globs = ["**/*.html", "**/*.webmanifest", "**/*.svg"]
+fallthrough = true
+
+[[rules]]
+type = "Data"
+globs = ["**/*.png"]
+fallthrough = true
 
 [vars]
 # Who may call the API from a browser. "*" stands for any port.
-ALLOWED_ORIGIN = "https://broughtonjared0-crypto.github.io,http://localhost:*,http://127.0.0.1:*"
+ALLOWED_ORIGIN = "https://groceries-api.groceries-api.workers.dev,https://broughtonjared0-crypto.github.io,http://localhost:*,http://127.0.0.1:*"
 
 # Secrets (set once, never committed):
 #   wrangler secret put KROGER_CLIENT_ID
