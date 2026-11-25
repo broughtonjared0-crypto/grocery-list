@@ -108,9 +108,12 @@ async function search(url, env, ctx, allowed) {
   if (loc && !/^[A-Za-z0-9]{1,16}$/.test(loc)) throw new HttpError(400, 'Bad locationId');
   let limit = parseInt(url.searchParams.get('limit') || '20', 10);
   limit = Math.min(50, Math.max(1, Number.isFinite(limit) ? limit : 20));
+  let start = parseInt(url.searchParams.get('start') || '0', 10);
+  start = Math.min(250, Math.max(0, Number.isFinite(start) ? start : 0));   // Kroger pages up to 250 results
 
-  const data = await cached(`search2:${loc}:${limit}:${q.toLowerCase()}`, SEARCH_TTL, url, ctx, async () => {
+  const data = await cached(`search2:${loc}:${limit}:${start}:${q.toLowerCase()}`, SEARCH_TTL, url, ctx, async () => {
     const params = { 'filter.term': q, 'filter.limit': String(limit) };
+    if (start) params['filter.start'] = String(start);
     if (loc) params['filter.locationId'] = loc;
     const r = await kroger(env, ctx, '/products', params);
     return (r.data || []).map(p => mapProduct(p, url.origin)).filter(p => p.productId && p.name);

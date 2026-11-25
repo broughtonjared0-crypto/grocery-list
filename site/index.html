@@ -599,7 +599,7 @@ function renderCatalog(){
   if(CR||crState){
     h+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h3 style="font-size:19px">${esc(S.store)} products</h3><button class="rm" data-act="crclose" aria-label="Close Kroger results" style="width:44px">${IC.x}</button></div>${crState?`<div class="${crBusy?'note':'err'}">${esc(crState)}</div>`:''}
     ${CR&&CR.length?`<p class="note" style="margin:6px 0 4px">★ saves a product as a favorite under its general item (like Bacon). + List adds it to your list.</p>`:''}
-    ${(CR||[]).map((p,i)=>{ const g=generalName(p,cq), gc=S.cat[key(g)]?S.cat[key(g)].cat:guessCat(g), fv=isFav(g,p.productId); return `<div class="mini">${thumb(p.name,gc,imgSrc(p.imageUrl))}<div><div class="nm">${esc(p.name)}</div><div class="sub">${esc([p.brand,p.size].filter(Boolean).join(' · '))}</div>${priceHTML(p)}<div class="sub" style="font-weight:700">→ ${esc(g)} · ${esc(CATN[gc])}</div></div><div class="mbtns"><button class="plus" data-act="catfav" data-i="${i}" aria-pressed="${fv}" aria-label="${fv?'Remove from':'Save to'} ${esc(g)} favorites">${starIcon(fv)}</button><button class="plus" data-act="addpick" data-i="${i}" aria-label="Add ${esc(p.name)} to list">+ List</button></div></div>`; }).join('')}</div>`;
+    ${(CR||[]).map((p,i)=>{ const g=generalName(p,cq), gc=S.cat[key(g)]?S.cat[key(g)].cat:guessCat(g), fv=isFav(g,p.productId); return `<div class="mini">${thumb(p.name,gc,imgSrc(p.imageUrl))}<div><div class="nm">${esc(p.name)}</div><div class="sub">${esc([p.brand,p.size].filter(Boolean).join(' · '))}</div>${priceHTML(p)}<div class="sub" style="font-weight:700">→ ${esc(g)} · ${esc(CATN[gc])}</div></div><div class="mbtns"><button class="plus" data-act="catfav" data-i="${i}" aria-pressed="${fv}" aria-label="${fv?'Remove from':'Save to'} ${esc(g)} favorites">${starIcon(fv)}</button><button class="plus" data-act="addpick" data-i="${i}" aria-label="Add ${esc(p.name)} to list">+ List</button></div></div>`; }).join('')}${CR&&CMORE&&CMORE.st.items===CR?moreBtn(CMORE.st,'cmore'):''}</div>`;
   }
   used.filter(c=>cfilter==='all'||cfilter===c[0]).forEach(c=>{
     const items=all.filter(x=>x.cat===c[0]&&(!q||key(x.name).includes(q))).sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name));
@@ -614,7 +614,8 @@ function renderCatalog(){
   $('#cf').onsubmit=async e=>{ e.preventDefault(); const term=cq.trim(); if(!term) return;
     if(!onKroger()){ CR=null; crBusy=false; crState=`${S.store} isn’t a Kroger-family store, so there’s nothing to search. Choose a Kroger store from the store button.`; renderCatalog(); return; }
     CR=[]; crBusy=true; crState=`Searching ${S.store}…`; renderCatalog();
-    try{ const loc=await ensureLoc(); CR=await api('/search',{q:term,locationId:loc.locationId}); crState=CR.length?'':`Nothing found at ${S.store}. Try simpler words.`; }
+    try{ const loc=await ensureLoc(); CR=await api('/search',{q:term,locationId:loc.locationId}); crState=CR.length?'':`Nothing found at ${S.store}. Try simpler words.`;
+      const cst={items:CR,busy:false,more:CR.length>=20}; CMORE={st:cst,run:()=>loadMore(cst,term,loc.locationId,()=>{ if(tab==='catalog'&&CR===cst.items) renderCatalog(); })}; }
     catch(err){ CR=null; crState=err.message; }
     crBusy=false; if(tab==='catalog') renderCatalog(); };
 }
@@ -655,6 +656,17 @@ function editSheet(it){
     if(key(nn)!==key(it.name)){ it.name=nn; } it.note=$('#eo').value.trim(); it.cat=$('#ec').value; it.store=$('#es').value; it.qty=q; it.star=$('#est').value==='1';
     const c=ensureCat(it); c.cat=it.cat; c.note=it.note; c.store=it.store; save(); closeSheet(); render(); };
 }
+// "Load more" for product searches: fetch the next page and append anything new.
+async function loadMore(st, q, locId, redraw){
+  if(st.busy||!st.more) return; st.busy=true; redraw();
+  try{ const r=await api('/search',{q,locationId:locId,start:st.items.length});
+    const seen=new Set(st.items.map(x=>String(x.productId))), add=r.filter(x=>!seen.has(String(x.productId)));
+    st.items.push(...add); st.more=r.length>=20&&add.length>0&&st.items.length<250;
+  }catch(e){ toast(e.message); }
+  st.busy=false; redraw();
+}
+const moreBtn=(st,act)=>st.more?`<div class="btnrow"><button class="pill p-soft" data-act="${act}" ${st.busy?'disabled':''}>${st.busy?'Loading…':'Load more'}</button></div>`:'';
+let VMORE=null, FMORE=null, CMORE=null;
 let VR=[], VREDRAW=null, FR=[], FREDRAW=null, favQ='', DP=null;
 function addProductToList(c, x){
   const pk=pickOf(x); c.choices=c.choices||{};
@@ -712,7 +724,7 @@ async function favSheet(k, query){
   bind();
   try{
     const loc=await ensureLoc();
-    const items=await api('/search',{q:query,locationId:loc.locationId});
+    const st={items:await api('/search',{q:query,locationId:loc.locationId}),busy:false}; st.more=st.items.length>=20; const items=st.items;
     if(SEQ!==mine) return;
     const draw=()=>{
       const favs=(c.favs&&c.favs[S.store])||[];
@@ -724,11 +736,13 @@ async function favSheet(k, query){
       cur=openSheet(head(loc)
         +(favCards.length?`<h4>★ Your favorites</h4><div class="vgrid">${favCards.map((x,i)=>card(x,i)).join('')}</div>${rest.length?`<h4>More at ${esc(S.store)}</h4>`:''}`:'')
         +(rest.length?`<div class="vgrid">${rest.map((x,j)=>card(x,favCards.length+j)).join('')}</div>`:(favCards.length?'':`<div class="err">Nothing came up at ${esc(S.store)}. Try a simpler search.</div>`))
+        +moreBtn(st,'fmore')
         +`<div class="btnrow"><button class="pill p-green" data-act="close">Done</button><button class="pill p-soft" data-act="catdel" data-k="${esc(k)}" style="color:var(--tomato)">Remove from Catalog</button></div>`);
       bind();
     };
     draw();
     FREDRAW=()=>{ if(SEQ===cur) draw(); };
+    FMORE=()=>loadMore(st,query,loc.locationId,FREDRAW);
   }catch(e){ if(SEQ!==mine) return; openSheet(head(curLoc())+`<div class="err">${esc(e.message)}</div>`); bind(); }
 }
 async function variantSheet(it, query){
@@ -746,7 +760,7 @@ async function variantSheet(it, query){
   bind();
   try{
     const loc=await ensureLoc();
-    const items=await api('/search',{q:query,locationId:loc.locationId});
+    const st={items:await api('/search',{q:query,locationId:loc.locationId}),busy:false}; st.more=st.items.length>=20; const items=st.items;
     if(SEQ!==mine) return;
     let cur=mine;
     const draw=()=>{
@@ -759,11 +773,13 @@ async function variantSheet(it, query){
       cur=openSheet(head(loc)
         +(favCards.length?`<h4>★ Your ${esc(it.name)} favorites</h4><div class="vgrid">${favCards.map((x,i)=>card(x,i)).join('')}</div>${rest.length?`<h4>More at ${esc(S.store)}</h4>`:''}`:(rest.length?'<p class="note" style="margin-top:10px">Tap ☆ to save favorites. They stay at the top, and your favorite is picked automatically when you add this item.</p>':''))
         +(rest.length?`<div class="vgrid">${rest.map((x,j)=>card(x,favCards.length+j)).join('')}</div>`:(favCards.length?'':`<div class="err">Nothing came up at ${esc(S.store)}. Try a simpler search.</div>`))
+        +moreBtn(st,'vmore')
         +(c&&c.choices&&c.choices[S.store]&&!favs.length?`<div class="btnrow"><button class="pill p-soft" data-act="unpick" data-id="${it.id}">Clear my pick</button></div>`:''));
       bind();
     };
     draw();
     VREDRAW=()=>{ if(SEQ===cur) draw(); };
+    VMORE=()=>loadMore(st,query,loc.locationId,VREDRAW);
   }catch(e){ if(SEQ!==mine) return; openSheet(head(curLoc())+`<div class="err">${esc(e.message)}</div>`); bind(); }
 }
 function storeList(){ const b=(S.stores&&S.stores.length?S.stores:STORES0); return b.includes(S.store)?b:[S.store,...b]; }
@@ -846,6 +862,9 @@ document.addEventListener('click',e=>{
   else if(a==='saleadd'){ const x=SALE&&SALE[+b.dataset.i]; if(!x) return; addItem(x.item); const c=S.cat[key(x.item)]; if(c){ c.choices=c.choices||{}; if(!c.choices[S.store]) c.choices[S.store]=pickOf(x.p); save(); render(); } }
   else if(a==='sales') runSales();
   else if(a==='favsheet') favSheet(b.dataset.k);
+  else if(a==='vmore'){ if(VMORE) VMORE(); }
+  else if(a==='fmore'){ if(FMORE) FMORE(); }
+  else if(a==='cmore'){ if(CMORE) CMORE.run(); }
   else if(a==='crclose'){ CR=null; crState=''; crBusy=false; cq=''; renderCatalog(); }
   else if(a==='pdetail'){ const x=FR[+b.dataset.i]; if(x) productSheet(x,b.dataset.k); }
   else if(a==='dback'){ if(DP) favSheet(DP.k,favQ); }
