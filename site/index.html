@@ -158,7 +158,7 @@ a.pill{text-decoration:none}
 <script>
 {
 // The Cloudflare Worker that talks to Kroger (no keys live in this page).
-const API_DEFAULT = 'https://groceries-api.REPLACE_ME.workers.dev';
+const API_DEFAULT = 'https://groceries-api.groceries-api.workers.dev';
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid = () => Math.random().toString(36).slice(2,10);
