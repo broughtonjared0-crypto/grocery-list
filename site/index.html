@@ -405,6 +405,7 @@ function renderTop(){
    <div class="acts">
      <button class="pill p-lemon" data-act="copy">${IC.copy} Copy list</button>
      <button class="pill p-light" data-act="finish" ${d?'':'disabled style="opacity:.5"'}>${IC.flag} Finish trip</button>
+     <button class="pill p-light" data-act="clear" ${n?'':'disabled style="opacity:.5"'}>${IC.x} Clear list</button>
    </div>
    <div class="sync" id="sync">${esc(sync)}</div>`;
 }
@@ -628,13 +629,27 @@ function settingsSheet(){
 }
 
 /* ---------- actions ---------- */
-function finishTrip(){
-  const got=S.list.filter(i=>i.done); if(!got.length) return;
-  const before=snap(), d=today();
+function saveTrip(got){
+  const d=today();
   S.trips.unshift({id:uid(),date:d,store:S.store,items:got.map(i=>{const c=choiceOf(i);return {name:i.name,cat:i.cat,note:i.note||'',pick:c?c.name:'',image:c&&c.image||''}})});
   if(S.trips.length>40) S.trips.length=40;
   got.forEach(i=>{ const c=ensureCat(i); c.count=(c.count||0)+1; c.last=d; });
+}
+function finishTrip(){
+  const got=S.list.filter(i=>i.done); if(!got.length) return;
+  const before=snap(); saveTrip(got);
   S.list=S.list.filter(i=>!i.done); save(); render(); toast(`Saved ${got.length} items to History`, before);
+}
+function clearSheet(){
+  const n=S.list.length, d=S.list.filter(i=>i.done).length; if(!n) return;
+  openSheet(`<h3>Clear your list?</h3><p class="note">Removes all ${n} item${n>1?'s':''} from the list. ${d?`The ${d} you checked off will be saved to History first. `:''}Everything stays in your Catalog, and you can Undo right after.</p>
+   <div class="btnrow"><button class="pill p-tom" data-act="doclear">${IC.x} Clear ${n} item${n>1?'s':''}</button><button class="pill p-soft" data-act="close">Cancel</button></div>`);
+}
+function clearList(){
+  const before=snap(), got=S.list.filter(i=>i.done), n=S.list.length;
+  if(got.length) saveTrip(got);
+  S.list=[]; save(); closeSheet(); render();
+  toast(`Cleared ${n} items${got.length?` · ${got.length} saved to History`:''}`, before);
 }
 const resetSearches = () => { SALE=null; saleState=''; CR=null; crState=''; };
 document.addEventListener('click',e=>{
@@ -662,6 +677,8 @@ document.addEventListener('click',e=>{
   else if(a==='theme'){ const t=b.dataset.th; if(t==='auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme=t; try{ t==='auto'?localStorage.removeItem('grocery-theme'):localStorage.setItem('grocery-theme',t) }catch(e){} settingsSheet(); }
   else if(a==='close') closeSheet();
   else if(a==='finish') finishTrip();
+  else if(a==='clear') clearSheet();
+  else if(a==='doclear') clearList();
   else if(a==='restock'){ const t=S.trips[0]; if(!t){ toast('No past trips yet'); return; } t.items.forEach(i=>{ if(!onList(i.name)){ const n=mk(i.name,i.note||'','',false,1,false); n.cat=i.cat; const c=S.cat[key(i.name)]; if(c){n.store=c.store||'';} S.list.push(n);} }); save(); render(); toast(`Added ${t.items.length} items from ${fmtD(t.date)}`); }
   else if(a==='readd'){ const t=S.trips.find(x=>x.id===b.dataset.id); if(t){ let n=0; t.items.forEach(i=>{ if(!onList(i.name)){ const x=mk(i.name,i.note||'','',false,1,false); x.cat=i.cat; S.list.push(x); n++; } }); save(); render(); toast(`Added ${n} items`); } }
   else if(a==='tab'){ tab=b.dataset.t; render(); scrollTo(0,0); }
