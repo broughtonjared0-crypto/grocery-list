@@ -14,6 +14,8 @@ const PRODUCTS = [
   { productId: '0001111041600', upc: '0001111041600', brand: 'Kroger', description: 'Kroger® Vitamin D Whole Milk', size: '1 gal', regular: 3.59, promo: 0 },
   { productId: '0007225003706', upc: '0007225003706', brand: 'Fairlife', description: 'fairlife® 2% Reduced Fat Ultra-Filtered Milk', size: '52 fl oz', regular: 4.99, promo: 0, badImage: true },
   { productId: '0001111008741', upc: '0001111008741', brand: 'Kroger', description: 'Kroger® Round Top White Bread', size: '20 oz', regular: 1.79, promo: 1.25, noImage: true },
+  { productId: '0001111097975', upc: '0001111097975', brand: 'Kroger', description: 'Kroger® Thick Cut Bacon', size: '16 oz', regular: 6.99, promo: 5.49 },
+  { productId: '0004470036245', upc: '0004470036245', brand: 'Oscar Mayer', description: 'Oscar Mayer Original Bacon', size: '16 oz', regular: 7.49, promo: 0 },
 ];
 
 let issued = 0;
