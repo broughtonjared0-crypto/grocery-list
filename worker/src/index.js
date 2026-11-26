@@ -72,6 +72,8 @@ export default {
         case '/stores': return await stores(url, env, ctx, allowed);
         case '/search': return await search(url, env, ctx, allowed);
         case '/product': return await product(url, env, ctx, allowed);
+        case '/off/search': return await offSearch(url, ctx, allowed);
+        case '/off/product': return await offProduct(url, ctx, allowed);
         case '/img': return await image(url);
         default: return json({ error: 'Not found' }, 404, allowed);
       }
@@ -176,15 +178,94 @@ function mapDetails(p, origin) {
   };
 }
 
+/* ---------------- Open Food Facts (every store that isn't Kroger) ---------------- */
+// Free, open product database: names, photos, nutrition. No prices. No key needed, but they ask for a named User-Agent.
+const OFF_UA = 'GroceriesApp/1.0 (personal grocery list)';
+async function offFetch(u) {
+  const r = await fetch(u, { headers: { 'User-Agent': OFF_UA, Accept: 'application/json' } });
+  if (r.status === 429) throw new HttpError(429, 'Open Food Facts is busy. Try again in a minute.');
+  if (r.status === 404) throw new HttpError(404, 'Open Food Facts has no details for that product');
+  if (!r.ok) throw new HttpError(502, `Open Food Facts answered ${r.status}`);
+  return r.json();
+}
+const offBrand = b => (Array.isArray(b) ? b : String(b || '').split(',')).map(x => String(x).replace(/^[a-z]{2}:/, '').trim()).filter(Boolean)[0] || '';
+const offProxied = (origin, u) => u ? `${origin}/img?u=${encodeURIComponent(u)}` : null;
+
+async function offSearch(url, ctx, allowed) {
+  const q = cleanTerm(url.searchParams.get('q'));
+  if (q.length < 2) throw new HttpError(400, 'Type at least 2 letters to search');
+  let start = parseInt(url.searchParams.get('start') || '0', 10);
+  start = Math.min(980, Math.max(0, Number.isFinite(start) ? start : 0));
+  const page = Math.floor(start / 20) + 1;
+  const data = await cached(`off2:${page}:${q.toLowerCase()}`, SEARCH_TTL, url, ctx, async () => {
+    const u = new URL('https://search.openfoodfacts.org/search');
+    u.searchParams.set('q', `${q.replace(/["\\]/g, ' ')} countries:"en:united-states"`);
+    u.searchParams.set('langs', 'en');
+    u.searchParams.set('sort_by', '-unique_scans_n');
+    u.searchParams.set('page', String(page));
+    u.searchParams.set('page_size', '20');
+    u.searchParams.set('fields', 'code,product_name,product_name_en,brands,quantity,image_front_small_url,image_front_url,nutriscore_grade');
+    const r = await offFetch(u);
+    // Every page reports 20 slots so the app knows to offer "Load more"; incomplete entries are dropped.
+    const hits = (r.hits || []).map(h => {
+      const name = h.product_name_en || h.product_name || '';
+      const img = h.image_front_small_url || h.image_front_url || null;
+      return name && img ? { productId: 'off:' + h.code, upc: h.code, name, brand: offBrand(h.brands), size: h.quantity || '', price: null, promo: null,
+        image: offProxied(url.origin, img), imageUrl: img, rating: null, reviews: null, nutriscore: h.nutriscore_grade || null, source: 'off' } : null;
+    }).filter(Boolean);
+    return { items: hits, more: page < (r.page_count || 0) };
+  });
+  return json(data, 200, allowed, SEARCH_TTL);
+}
+
+const OFF_NUT = [['energy-kcal', 'Calories', ''], ['fat', 'Total Fat', 'g'], ['saturated-fat', 'Saturated Fat', 'g'], ['trans-fat', 'Trans Fat', 'g'], ['cholesterol', 'Cholesterol', 'mg'],
+  ['sodium', 'Sodium', 'mg'], ['carbohydrates', 'Total Carbohydrate', 'g'], ['fiber', 'Dietary Fiber', 'g'], ['sugars', 'Sugar', 'g'], ['added-sugars', 'Added Sugars', 'g'], ['proteins', 'Protein', 'g']];
+async function offProduct(url, ctx, allowed) {
+  const code = (url.searchParams.get('code') || '').replace(/^off:/, '').trim();
+  if (!/^\d{6,14}$/.test(code)) throw new HttpError(400, 'Bad product code');
+  const data = await cached(`offp1:${code}`, SEARCH_TTL, url, ctx, async () => {
+    const r = await offFetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=code,product_name,product_name_en,brands,quantity,image_front_url,image_ingredients_url,image_nutrition_url,image_packaging_url,nutriments,serving_size,nutrition_data_per,ingredients_text_en,ingredients_text,nutriscore_grade,nova_group,categories,labels,stores,origins`);
+    const p = r.product;
+    if (!p) throw new HttpError(404, 'Open Food Facts has no details for that product');
+    const n = p.nutriments || {}, per = n['energy-kcal_serving'] != null ? 'serving' : '100g';
+    const nutrients = OFF_NUT.map(([k, name, unit]) => {
+      let v = n[`${k}_${per}`]; if (v == null || v === '') return null;
+      v = Number(v); if (!Number.isFinite(v)) return null;
+      if (unit === 'mg') v = v * 1000;   // Open Food Facts stores these in grams
+      return { name, quantity: Math.round(v * 10) / 10, unit, dv: null };
+    }).filter(Boolean);
+    const imgs = [p.image_front_url, p.image_nutrition_url, p.image_ingredients_url, p.image_packaging_url].filter(Boolean)
+      .map((u, i) => ({ perspective: ['front', 'nutrition', 'ingredients', 'packaging'][i], featured: i === 0, url: offProxied(url.origin, u) }));
+    const img = p.image_front_url || null;
+    return {
+      productId: 'off:' + p.code, upc: p.code, name: p.product_name_en || p.product_name || '', brand: offBrand(p.brands), size: p.quantity || '',
+      price: null, promo: null, image: offProxied(url.origin, img), imageUrl: img, rating: null, reviews: null, source: 'off',
+      nutriscore: p.nutriscore_grade && /^[a-e]$/.test(p.nutriscore_grade) ? p.nutriscore_grade : null,
+      nova: p.nova_group || null,
+      labels: String(p.labels || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 6),
+      stores: String(p.stores || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 6),
+      categories: String(p.categories || '').split(',').map(x => x.trim()).filter(Boolean).slice(-2),
+      countryOrigin: p.origins || '',
+      images: imgs,
+      pageUrl: `https://world.openfoodfacts.org/product/${p.code}`,
+      nutrition: (nutrients.length || p.ingredients_text_en || p.ingredients_text) ? {
+        servingSize: per === 'serving' ? (p.serving_size || '1 serving') : '100 g', servings: '',
+        ingredients: p.ingredients_text_en || p.ingredients_text || '', score: '', nutrients,
+      } : null,
+    };
+  });
+  return json(data, 200, allowed, SEARCH_TTL);
+}
+
 async function image(url) {
   const raw = url.searchParams.get('u') || '';
   let t;
   try { t = new URL(raw); } catch { t = null; }
   if (!t || t.protocol !== 'https:' || !isKrogerHost(t.hostname)) {
-    return json({ error: 'Only https kroger.com images are allowed' }, 400, null);
+    return json({ error: 'Only Kroger and Open Food Facts images are allowed' }, 400, null);
   }
   const r = await fetch(t.toString(), {
-    headers: { Accept: 'image/avif,image/webp,image/*,*/*;q=0.8' },
+    headers: { Accept: 'image/avif,image/webp,image/*,*/*;q=0.8', 'User-Agent': OFF_UA },
     cf: { cacheEverything: true, cacheTtl: IMG_TTL },
   });
   // Re-check where any redirect ended up.
@@ -359,7 +440,7 @@ function cleanTerm(q) {
 }
 
 const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : (v != null && v !== '' && Number.isFinite(+v) ? +v : null));
-const isKrogerHost = h => h === 'kroger.com' || h.endsWith('.kroger.com');
+const isKrogerHost = h => h === 'kroger.com' || h.endsWith('.kroger.com') || h === 'images.openfoodfacts.org' || h === 'static.openfoodfacts.org';
 
 function matchOrigin(origin, list) {
   if (!origin || !list) return null;

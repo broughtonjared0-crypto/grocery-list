@@ -9,7 +9,7 @@ self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Prom
 self.addEventListener('fetch', e => {
   const req = e.request, u = new URL(req.url);
   if (req.method !== 'GET' || u.origin !== location.origin) return;
-  if (/^\/(stores|search|product|sync|api|version)\b/.test(u.pathname)) return;          // live data: never cached here
+  if (/^\/(stores|search|product|off|sync|api|version)\b/.test(u.pathname)) return;          // live data: never cached here
   if (u.pathname === '/img') {
     e.respondWith(caches.open(IMGS).then(async c => {
       const hit = await c.match(req); if (hit) return hit;
