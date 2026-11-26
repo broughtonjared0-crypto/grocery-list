@@ -518,18 +518,28 @@ function renderList(){
 }
 
 /* ---------- ideas ---------- */
-const PAIRS=[[/spaghetti|^pasta$/,['Ground beef','Garlic bread']],[/pasta sauce/,['Ground beef','Italian seasoning']],[/pancake/,['Maple syrup','Eggs']],[/^bread|texas toast/,['Deli turkey','Eggs']],
- [/peanut butter/,['Grape jelly','Bananas']],[/tortilla/,['Shredded cheese','Salsa']],[/chicken/,['BBQ sauce','Rice']],[/bacon/,['Eggs','Hash browns']],[/ramen/,['Eggs']],
- [/nutella/,['Strawberries','Bananas']],[/tea/,['Lemons']],[/chip/,['Salsa','French onion dip']],[/fries/,['Ketchup']],[/milk/,['Cereal']],[/mac and cheese/,['Hot dogs']],
- [/trash can|wipes/,['Trash bags']],[/scrubber/,['Dish soap']],[/toothpaste/,['Toothbrush','Floss']],[/body wash/,['Shampoo','Deodorant']],[/plastic cups/,['Paper plates']],
- [/meatball/,['Sub rolls','Mozzarella']],[/cheddar/,['Crackers']],[/pizza/,['Pepperoni']],
- [/ground beef|burger/,['Hamburger buns','Sliced cheese','Lettuce']],[/taco|tortilla/,['Taco seasoning','Sour cream']],[/hot dog/,['Hot dog buns','Mustard']],
- [/egg/,['Bacon','Shredded cheese']],[/cereal/,['Bananas']],[/coffee/,['Coffee creamer','Coffee filters']],[/rice/,['Soy sauce','Frozen vegetables']],
- [/potato/,['Sour cream','Butter']],[/lettuce|salad/,['Salad dressing','Croutons']],[/steak/,['Steak seasoning','Potatoes']],[/salmon|fish/,['Lemons','Rice']],
- [/turkey|ham\b|deli/,['Sliced cheese','Bread','Mayonnaise']],[/soup/,['Crackers']],[/ice cream/,['Chocolate syrup','Cones']],[/waffle/,['Maple syrup']],
- [/apple/,['Peanut butter','Caramel dip']],[/strawberr/,['Whipped cream']],[/yogurt/,['Granola']],[/bagel/,['Cream cheese']],[/pasta sauce|spaghetti/,['Parmesan']],
- [/chips|doritos/,['Soda']],[/popcorn/,['Candy']],[/paper plate/,['Napkins','Plastic forks']],[/laundry|detergent/,['Fabric softener']],[/dish soap/,['Sponges']],
- [/shampoo/,['Conditioner']],[/toothbrush/,['Mouthwash']],[/diaper/,['Baby wipes']],[/dog food/,['Dog treats']],[/cat food/,['Cat litter']]];
+// What goes with what. Whole-word matches only, so "chocolate chip muffins" isn't "chips" and "steak" isn't "tea".
+const PAIRS=[
+ [/\bspaghetti\b|^pasta$/,['Ground beef','Garlic bread','Parmesan']],[/\bpasta sauce\b/,['Ground beef','Italian seasoning']],
+ [/\bpancakes?\b|\bpancake mix\b/,['Maple syrup','Eggs']],[/\bwaffles?\b/,['Maple syrup']],
+ [/^bread$|\bsandwich bread\b|\bwhite bread\b|\bwheat bread\b/,['Deli turkey','Peanut butter']],[/\btexas toast\b|\bgarlic bread\b/,['Spaghetti']],
+ [/\bpeanut butter\b/,['Grape jelly','Bananas']],[/\btortillas?\b(?! chips)/,['Shredded cheese','Salsa','Sour cream']],[/\btacos?\b/,['Taco seasoning','Shredded cheese','Sour cream']],
+ [/\bchicken\b(?!.*\b(soup|broth|noodle)\b)/,['BBQ sauce','Rice']],[/\bbacon\b/,['Eggs','Hash browns']],[/\bramen\b/,['Eggs']],
+ [/\bnutella\b/,['Strawberries','Bananas']],[/\btea( bags)?\b/,['Lemons','Honey']],
+ [/\b(tortilla |potato )?chips\b(?<!chocolate chips)|\bdoritos\b/,['Salsa','French onion dip','Soda']],[/\bfries\b/,['Ketchup']],
+ [/\bmilk\b(?!.*\bchocolate\b)(?<!chocolate milk)(?<!coconut milk)/,['Cereal']],[/\bmac and cheese\b/,['Hot dogs']],
+ [/\btrash can\b|\bcleaning wipes\b/,['Trash bags']],[/\b(dish )?scrubbers?\b|\bsponges?\b/,['Dish soap']],[/\btoothpaste\b/,['Toothbrush','Floss']],
+ [/\bbody wash\b/,['Shampoo','Deodorant']],[/\bplastic cups\b|\bpaper plates\b/,['Napkins','Plastic forks']],
+ [/\bmeatballs?\b/,['Sub rolls','Mozzarella']],[/\bcheddar\b/,['Crackers']],[/\bpizzas?\b/,['Pepperoni']],
+ [/\bground beef\b|\bburgers?\b/,['Hamburger buns','Sliced cheese','Lettuce']],[/\bhot dogs?\b(?! buns)/,['Hot dog buns','Mustard']],
+ [/\beggs?\b(?!.*\bnog\b)/,['Bacon','Shredded cheese']],[/\bcereal\b/,['Milk','Bananas']],[/\bcoffee\b(?! (creamer|filters))/,['Coffee creamer','Coffee filters']],
+ [/\brice\b/,['Soy sauce','Frozen vegetables']],[/\bpotato(es)?\b(?! chips)/,['Sour cream','Butter']],[/\blettuce\b|\bsalad\b(?! dressing)/,['Salad dressing','Croutons']],
+ [/\bsteaks?\b/,['Steak seasoning','Potatoes']],[/\bsalmon\b|\btilapia\b/,['Lemons','Rice']],
+ [/\bdeli (turkey|ham)\b|\blunch meat\b|\bsliced turkey\b/,['Sliced cheese','Bread','Mayonnaise']],[/\bsoup\b/,['Crackers']],
+ [/\bice cream\b/,['Chocolate syrup','Cones']],[/\bapples?\b(?! juice| sauce)/,['Peanut butter','Caramel dip']],[/\bstrawberries\b/,['Whipped cream']],
+ [/\byogurt\b/,['Granola']],[/\bbagels?\b/,['Cream cheese']],[/\bpopcorn\b/,['Candy']],
+ [/\blaundry detergent\b/,['Fabric softener']],[/\bdish soap\b/,['Sponges']],[/\bshampoo\b/,['Conditioner']],[/\btoothbrush\b/,['Mouthwash']],
+ [/\bdiapers\b/,['Baby wipes']],[/\bdog food\b/,['Dog treats']],[/\bcat food\b/,['Cat litter']]];
 // When pairings run out, "More ideas" suggests common staples you don't usually buy.
 const STAPLES=[['Eggs','Breakfast staple'],['Milk','Fridge staple'],['Bread','Sandwich staple'],['Butter','Fridge staple'],['Bananas','Easy snack'],['Apples','Easy snack'],
  ['Onions','Cooking staple'],['Garlic','Cooking staple'],['Potatoes','Side dish staple'],['Rice','Pantry staple'],['Pasta','Pantry staple'],['Canned tomatoes','Pantry staple'],
@@ -540,15 +550,19 @@ const STAPLES=[['Eggs','Breakfast staple'],['Milk','Fridge staple'],['Bread','Sa
  ['Tomatoes','Salads and sandwiches'],['Carrots','Healthy snack'],['Toilet paper','Household staple'],['Paper towels','Household staple'],['Trash bags','Household staple'],
  ['Dish soap','Household staple'],['Laundry detergent','Household staple'],['Aluminum foil','Kitchen staple'],['Zip bags','Kitchen staple'],['Hand soap','Household staple'],
  ['Toothpaste','Personal care'],['Deodorant','Personal care'],['Shampoo','Personal care']];
-let ideaN=8, usualN=8;
+let ideaN=8, usualN=8, ideaSeed=0;
+// Stable shuffle: the same seed gives the same order, so ideas don't jump around until you tap Refresh.
+function seeded(arr, seed){ if(!seed) return arr; let a=seed>>>0||1; const rnd=()=>{ a=(a+0x6D2B79F5)|0; let t=Math.imul(a^a>>>15,1|a); t^=t+Math.imul(t^t>>>7,61|t); return ((t^t>>>14)>>>0)/4294967296; };
+  const out=arr.slice(); for(let i=out.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); [out[i],out[j]]=[out[j],out[i]]; } return out; }
 let SALE=null, saleState='', saleBusy=false;
 function pairings(){
   const base = S.list.length ? S.list : (S.trips[0]?.items||[]);
   const names=S.list.map(i=>key(i.name)), out=[], seen=new Set();
   base.forEach(b=>PAIRS.forEach(([r,arr])=>{ if(r.test(key(b.name))) arr.forEach(s=>{ const k=key(s), w=k.split(' ')[0];
     if(seen.has(k)||names.some(n=>n.includes(w)&&w.length>3)||onList(s)) return; seen.add(k); out.push({name:s,why:'Goes with '+b.name}); }); }));
+  const paired=seeded(out.splice(0),ideaSeed); out.push(...paired);
   const have=new Set(Object.keys(S.cat).concat(names));
-  STAPLES.forEach(([n,why])=>{ const k=key(n); if(seen.has(k)||have.has(k)||onList(n)) return; seen.add(k); out.push({name:n,why}); });
+  seeded(STAPLES,ideaSeed&&ideaSeed+7).forEach(([n,why])=>{ const k=key(n); if(seen.has(k)||have.has(k)||onList(n)) return; seen.add(k); out.push({name:n,why}); });
   return out;
 }
 function miniRow(name,cat,sub,src){
@@ -563,7 +577,7 @@ function renderIdeas(){
   const p=pairings(), l=curLoc();
   const usual=Object.values(S.cat).filter(c=>!onList(c.name)&&c.count>0).sort((a,b)=>b.count-a.count||String(b.last).localeCompare(String(a.last)));
   let h=`<main><div class="sec"><h2 style="font-size:28px">Ideas for your list</h2></div>
-  <div class="card"><h3 style="font-size:19px">Goes with what you’re getting</h3>${p.length?p.slice(0,ideaN).map(x=>miniRow(x.name,guessCat(x.name),x.why)).join(''):'<p class="note">Add a few items and matches show up here.</p>'}${p.length>ideaN?`<div class="btnrow"><button class="pill p-soft" data-act="moreideas">${IC.spark} More ideas</button></div>`:''}</div>
+  <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h3 style="font-size:19px">Goes with what you’re getting</h3><button class="pill p-soft" data-act="refreshideas" style="min-height:40px;padding:0 12px;flex:none" aria-label="Show different ideas">↻ Refresh</button></div>${p.length?p.slice(0,ideaN).map(x=>miniRow(x.name,guessCat(x.name),x.why)).join(''):'<p class="note">Add a few items and matches show up here.</p>'}${p.length>ideaN?`<div class="btnrow"><button class="pill p-soft" data-act="moreideas">${IC.spark} More ideas</button></div>`:''}</div>
   <div class="card"><h3 style="font-size:19px">Your usuals not on the list</h3>${usual.length?usual.slice(0,usualN).map(c=>miniRow(c.name,c.cat,`Bought ${c.count}× · last ${fmtD(c.last)}`)).join(''):'<p class="note">Finish a trip and your regular buys appear here.</p>'}${usual.length>usualN?`<div class="btnrow"><button class="pill p-soft" data-act="moreusual">Show more (${usual.length-usualN})</button></div>`:''}</div>
   <div class="card"><h3 style="font-size:19px">On sale at ${esc(S.store)}</h3>
    ${onKroger()?`<p class="note">Checks your usuals${l?' at '+esc(locLabel(l)):''} for sale prices.</p>`:'<p class="note">Sale prices come from Kroger-family stores. Choose one from the store button to see what’s on sale.</p>'}
@@ -882,6 +896,7 @@ document.addEventListener('click',e=>{
   else if(a==='saleadd'){ const x=SALE&&SALE[+b.dataset.i]; if(!x) return; addItem(x.item); const c=S.cat[key(x.item)]; if(c){ c.choices=c.choices||{}; if(!c.choices[S.store]) c.choices[S.store]=pickOf(x.p); save(); render(); } }
   else if(a==='sales') runSales();
   else if(a==='moreideas'){ ideaN+=8; renderIdeas(); }
+  else if(a==='refreshideas'){ ideaSeed=(ideaSeed+1)*7919%100003||1; ideaN=8; renderIdeas(); toast('Fresh ideas'); }
   else if(a==='moreusual'){ usualN+=8; renderIdeas(); }
   else if(a==='favsheet') favSheet(b.dataset.k);
   else if(a==='vmore'){ if(VMORE) VMORE(); }
