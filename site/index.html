@@ -522,14 +522,34 @@ const PAIRS=[[/spaghetti|^pasta$/,['Ground beef','Garlic bread']],[/pasta sauce/
  [/peanut butter/,['Grape jelly','Bananas']],[/tortilla/,['Shredded cheese','Salsa']],[/chicken/,['BBQ sauce','Rice']],[/bacon/,['Eggs','Hash browns']],[/ramen/,['Eggs']],
  [/nutella/,['Strawberries','Bananas']],[/tea/,['Lemons']],[/chip/,['Salsa','French onion dip']],[/fries/,['Ketchup']],[/milk/,['Cereal']],[/mac and cheese/,['Hot dogs']],
  [/trash can|wipes/,['Trash bags']],[/scrubber/,['Dish soap']],[/toothpaste/,['Toothbrush','Floss']],[/body wash/,['Shampoo','Deodorant']],[/plastic cups/,['Paper plates']],
- [/meatball/,['Sub rolls','Mozzarella']],[/cheddar/,['Crackers']],[/pizza/,['Pepperoni']]];
+ [/meatball/,['Sub rolls','Mozzarella']],[/cheddar/,['Crackers']],[/pizza/,['Pepperoni']],
+ [/ground beef|burger/,['Hamburger buns','Sliced cheese','Lettuce']],[/taco|tortilla/,['Taco seasoning','Sour cream']],[/hot dog/,['Hot dog buns','Mustard']],
+ [/egg/,['Bacon','Shredded cheese']],[/cereal/,['Bananas']],[/coffee/,['Coffee creamer','Coffee filters']],[/rice/,['Soy sauce','Frozen vegetables']],
+ [/potato/,['Sour cream','Butter']],[/lettuce|salad/,['Salad dressing','Croutons']],[/steak/,['Steak seasoning','Potatoes']],[/salmon|fish/,['Lemons','Rice']],
+ [/turkey|ham\b|deli/,['Sliced cheese','Bread','Mayonnaise']],[/soup/,['Crackers']],[/ice cream/,['Chocolate syrup','Cones']],[/waffle/,['Maple syrup']],
+ [/apple/,['Peanut butter','Caramel dip']],[/strawberr/,['Whipped cream']],[/yogurt/,['Granola']],[/bagel/,['Cream cheese']],[/pasta sauce|spaghetti/,['Parmesan']],
+ [/chips|doritos/,['Soda']],[/popcorn/,['Candy']],[/paper plate/,['Napkins','Plastic forks']],[/laundry|detergent/,['Fabric softener']],[/dish soap/,['Sponges']],
+ [/shampoo/,['Conditioner']],[/toothbrush/,['Mouthwash']],[/diaper/,['Baby wipes']],[/dog food/,['Dog treats']],[/cat food/,['Cat litter']]];
+// When pairings run out, "More ideas" suggests common staples you don't usually buy.
+const STAPLES=[['Eggs','Breakfast staple'],['Milk','Fridge staple'],['Bread','Sandwich staple'],['Butter','Fridge staple'],['Bananas','Easy snack'],['Apples','Easy snack'],
+ ['Onions','Cooking staple'],['Garlic','Cooking staple'],['Potatoes','Side dish staple'],['Rice','Pantry staple'],['Pasta','Pantry staple'],['Canned tomatoes','Pantry staple'],
+ ['Chicken breast','Weeknight dinner'],['Ground beef','Weeknight dinner'],['Shredded cheese','Goes in everything'],['Sour cream','Topping'],['Yogurt','Breakfast or snack'],
+ ['Frozen vegetables','Quick side'],['Olive oil','Cooking staple'],['Salt','Pantry staple'],['Black pepper','Pantry staple'],['Flour','Baking staple'],['Sugar','Baking staple'],
+ ['Peanut butter','Pantry staple'],['Coffee','Morning staple'],['Orange juice','Breakfast drink'],['Bottled water','Always handy'],['Granola bars','Grab-and-go snack'],
+ ['Crackers','Snack staple'],['Ketchup','Condiment staple'],['Mayonnaise','Condiment staple'],['Soup','Easy lunch'],['Oatmeal','Quick breakfast'],['Lettuce','Salads and sandwiches'],
+ ['Tomatoes','Salads and sandwiches'],['Carrots','Healthy snack'],['Toilet paper','Household staple'],['Paper towels','Household staple'],['Trash bags','Household staple'],
+ ['Dish soap','Household staple'],['Laundry detergent','Household staple'],['Aluminum foil','Kitchen staple'],['Zip bags','Kitchen staple'],['Hand soap','Household staple'],
+ ['Toothpaste','Personal care'],['Deodorant','Personal care'],['Shampoo','Personal care']];
+let ideaN=8, usualN=8;
 let SALE=null, saleState='', saleBusy=false;
 function pairings(){
   const base = S.list.length ? S.list : (S.trips[0]?.items||[]);
   const names=S.list.map(i=>key(i.name)), out=[], seen=new Set();
   base.forEach(b=>PAIRS.forEach(([r,arr])=>{ if(r.test(key(b.name))) arr.forEach(s=>{ const k=key(s), w=k.split(' ')[0];
     if(seen.has(k)||names.some(n=>n.includes(w)&&w.length>3)||onList(s)) return; seen.add(k); out.push({name:s,why:'Goes with '+b.name}); }); }));
-  return out.slice(0,12);
+  const have=new Set(Object.keys(S.cat).concat(names));
+  STAPLES.forEach(([n,why])=>{ const k=key(n); if(seen.has(k)||have.has(k)||onList(n)) return; seen.add(k); out.push({name:n,why}); });
+  return out;
 }
 function miniRow(name,cat,sub,src){
   const on=onList(name);
@@ -541,10 +561,10 @@ function saleRow(x,i){
 }
 function renderIdeas(){
   const p=pairings(), l=curLoc();
-  const usual=Object.values(S.cat).filter(c=>!onList(c.name)&&c.count>0).sort((a,b)=>b.count-a.count||String(b.last).localeCompare(String(a.last))).slice(0,10);
+  const usual=Object.values(S.cat).filter(c=>!onList(c.name)&&c.count>0).sort((a,b)=>b.count-a.count||String(b.last).localeCompare(String(a.last)));
   let h=`<main><div class="sec"><h2 style="font-size:28px">Ideas for your list</h2></div>
-  <div class="card"><h3 style="font-size:19px">Goes with what you’re getting</h3>${p.length?p.map(x=>miniRow(x.name,guessCat(x.name),x.why)).join(''):'<p class="note">Add a few items and matches show up here.</p>'}</div>
-  <div class="card"><h3 style="font-size:19px">Your usuals not on the list</h3>${usual.length?usual.map(c=>miniRow(c.name,c.cat,`Bought ${c.count}× · last ${fmtD(c.last)}`)).join(''):'<p class="note">Finish a trip and your regular buys appear here.</p>'}</div>
+  <div class="card"><h3 style="font-size:19px">Goes with what you’re getting</h3>${p.length?p.slice(0,ideaN).map(x=>miniRow(x.name,guessCat(x.name),x.why)).join(''):'<p class="note">Add a few items and matches show up here.</p>'}${p.length>ideaN?`<div class="btnrow"><button class="pill p-soft" data-act="moreideas">${IC.spark} More ideas</button></div>`:''}</div>
+  <div class="card"><h3 style="font-size:19px">Your usuals not on the list</h3>${usual.length?usual.slice(0,usualN).map(c=>miniRow(c.name,c.cat,`Bought ${c.count}× · last ${fmtD(c.last)}`)).join(''):'<p class="note">Finish a trip and your regular buys appear here.</p>'}${usual.length>usualN?`<div class="btnrow"><button class="pill p-soft" data-act="moreusual">Show more (${usual.length-usualN})</button></div>`:''}</div>
   <div class="card"><h3 style="font-size:19px">On sale at ${esc(S.store)}</h3>
    ${onKroger()?`<p class="note">Checks your usuals${l?' at '+esc(locLabel(l)):''} for sale prices.</p>`:'<p class="note">Sale prices come from Kroger-family stores. Choose one from the store button to see what’s on sale.</p>'}
    ${SALE&&SALE.length?SALE.map(saleRow).join(''):SALE&&!saleState?'<p class="note">None of your usuals are on sale right now.</p>':''}
@@ -861,6 +881,8 @@ document.addEventListener('click',e=>{
   else if(a==='fav'&&it){ const x=VR[+b.dataset.i]; if(!x) return; const on=toggleFav(ensureCat(it),pickOf(x)); save(); render(); if(VREDRAW) VREDRAW(); toast(on?`★ Saved to ${it.name} favorites`:`Removed from ${it.name} favorites`); }
   else if(a==='saleadd'){ const x=SALE&&SALE[+b.dataset.i]; if(!x) return; addItem(x.item); const c=S.cat[key(x.item)]; if(c){ c.choices=c.choices||{}; if(!c.choices[S.store]) c.choices[S.store]=pickOf(x.p); save(); render(); } }
   else if(a==='sales') runSales();
+  else if(a==='moreideas'){ ideaN+=8; renderIdeas(); }
+  else if(a==='moreusual'){ usualN+=8; renderIdeas(); }
   else if(a==='favsheet') favSheet(b.dataset.k);
   else if(a==='vmore'){ if(VMORE) VMORE(); }
   else if(a==='fmore'){ if(FMORE) FMORE(); }
