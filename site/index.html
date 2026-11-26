@@ -167,6 +167,8 @@ a.pill{text-decoration:none}
 .dchips .warn{background:color-mix(in srgb,var(--tomato) 15%,transparent);color:var(--tomato)}
 .stars{color:#d9a400;letter-spacing:1px}
 .ntab{width:100%;border-collapse:collapse;font-size:14.5px}.ntab td{padding:7px 0;border-bottom:1px solid var(--line)}.ntab td+td{text-align:right;color:var(--mute);white-space:nowrap}
+.stag{display:inline-block;justify-self:start;align-self:start;font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:99px;background:color-mix(in srgb,var(--leaf) 16%,transparent);color:var(--ink);white-space:nowrap}
+.stag.any{background:var(--soft);color:var(--mute)}
 .sheet h4{font-family:"Familjen Grotesk",sans-serif;font-size:18px;margin:18px 0 4px}
 </style>
 </head>
@@ -394,7 +396,7 @@ async function ensureLoc(){
   if(!l) throw new Error(`No ${S.store} stores near ${S.zip}. Tap the store button to pick another.`);
   S.loc=l; S.store=chainName(l.chain); save(); renderTop(); return l;
 }
-const STORES0 = ['Kroger','Costco','Meijer','ALDI','Target',"Sam's Club",'Publix','Save A Lot',"BJ's Wholesale Club",'The Fresh Market','Dollar General','Walgreens'];
+const STORES0 = ['Kroger','Costco','Walmart','Meijer','ALDI','Target',"Sam's Club",'Publix','Save A Lot',"BJ's Wholesale Club",'The Fresh Market','Dollar General','Walgreens'];
 
 /* ---------- photos: own photo > Kroger pick > drawing ---------- */
 const choiceFor = n => { const c=S.cat[key(n)]; return c&&(c.choices&&c.choices[S.store]||c.favs&&c.favs[S.store]&&c.favs[S.store][0])||null; };
@@ -631,9 +633,9 @@ function renderCatalog(){
    <p class="note" style="margin:6px 2px 0">Typing filters your items. Tap <b>${onKroger()?'Kroger':'Products'}</b> to search ${onKroger()?'the store':'Open Food Facts'} and save products to your Catalog.</p>
    <div class="chips"><button data-act="cf" data-c="all" aria-pressed="${cfilter==='all'}">All</button>${used.map(c=>`<button data-act="cf" data-c="${c[0]}" aria-pressed="${cfilter===c[0]}">${c[1]}</button>`).join('')}</div>`;
   if(CR||crState){
-    h+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h3 style="font-size:19px">${onKroger()?esc(S.store)+' products':'Products · Open Food Facts'}</h3><button class="rm" data-act="crclose" aria-label="Close Kroger results" style="width:44px">${IC.x}</button></div>${crState?`<div class="${crBusy?'note':'err'}">${esc(crState)}</div>`:''}
+    h+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h3 style="font-size:19px">${esc(S.store)} products</h3><button class="rm" data-act="crclose" aria-label="Close Kroger results" style="width:44px">${IC.x}</button></div>${crState?`<div class="${crBusy?'note':'err'}">${esc(crState)}</div>`:''}
     ${CR&&CR.length?`<p class="note" style="margin:6px 0 4px">★ saves a product as a favorite under its general item (like Bacon). + List adds it to your list.</p>`:''}
-    ${(CR||[]).map((p,i)=>{ const g=generalName(p,cq), gc=S.cat[key(g)]?S.cat[key(g)].cat:guessCat(g), fv=isFav(g,p.productId); return `<div class="mini">${thumb(p.name,gc,imgSrc(p.imageUrl))}<div><div class="nm">${esc(p.name)}</div><div class="sub">${esc([p.brand,p.size].filter(Boolean).join(' · '))}</div>${priceHTML(p)}<div class="sub" style="font-weight:700">→ ${esc(g)} · ${esc(CATN[gc])}</div></div><div class="mbtns"><button class="plus" data-act="catfav" data-i="${i}" aria-pressed="${fv}" aria-label="${fv?'Remove from':'Save to'} ${esc(g)} favorites">${starIcon(fv)}</button><button class="plus" data-act="addpick" data-i="${i}" aria-label="Add ${esc(p.name)} to list">+ List</button></div></div>`; }).join('')}${CR&&CMORE&&CMORE.st.items===CR?moreBtn(CMORE.st,'cmore'):''}</div>`;
+    ${(CR||[]).map((p,i)=>{ const g=generalName(p,cq), gc=S.cat[key(g)]?S.cat[key(g)].cat:guessCat(g), fv=isFav(g,p.productId); return `<div class="mini">${thumb(p.name,gc,imgSrc(p.imageUrl))}<div><div class="nm">${esc(p.name)}</div><div class="sub">${esc([p.brand,p.size].filter(Boolean).join(' · '))}</div>${storeTag(p)} ${priceHTML(p)}${priceNote(p)}${ratingLine(p)}<div class="sub" style="font-weight:700">→ ${esc(g)} · ${esc(CATN[gc])}</div></div><div class="mbtns"><button class="plus" data-act="catfav" data-i="${i}" aria-pressed="${fv}" aria-label="${fv?'Remove from':'Save to'} ${esc(g)} favorites">${starIcon(fv)}</button><button class="plus" data-act="addpick" data-i="${i}" aria-label="Add ${esc(p.name)} to list">+ List</button></div></div>`; }).join('')}${CMORE&&(CR&&CMORE.st.items===CR)?moreBtn(CMORE.st,'cmore'):''}</div>`;
   }
   used.filter(c=>cfilter==='all'||cfilter===c[0]).forEach(c=>{
     const items=all.filter(x=>x.cat===c[0]&&(!q||key(x.name).includes(q))).sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name));
@@ -648,7 +650,8 @@ function renderCatalog(){
   $('#cf').onsubmit=async e=>{ e.preventDefault(); const term=cq.trim(); if(!term) return;
     CR=[]; crBusy=true; crState=`Searching ${S.store}…`; renderCatalog();
     try{ const cst=await newSearch(term); CR=cst.items; crState=CR.length?'':`Nothing found. Try simpler words.`;
-      CMORE={st:cst,run:()=>loadMore(cst,()=>{ if(tab==='catalog'&&CR===cst.items) renderCatalog(); })}; }
+      const rd=()=>{ if(tab==='catalog'&&CR===cst.items) renderCatalog(); }; CMORE={st:cst,run:any=>any?anyStore(cst,rd):loadMore(cst,rd)};
+      if(!CR.length&&!onKroger()&&cst.store) crState=`No ${S.store} products found for that search yet.`; }
     catch(err){ CR=null; crState=err.message; }
     crBusy=false; if(tab==='catalog') renderCatalog(); };
 }
@@ -691,21 +694,31 @@ function editSheet(it){
 }
 // "Load more" for product searches: fetch the next page and append anything new.
 // Product search: Kroger (prices, aisles) at Kroger-family stores; Open Food Facts (photos, nutrition) everywhere else.
-async function searchProducts(q, start){
+async function searchProducts(q, start, any){
   if(onKroger()){ const loc=await ensureLoc(); const items=await api('/search',start?{q,locationId:loc.locationId,start}:{q,locationId:loc.locationId}); return {items,more:items.length>=20}; }
-  const r=await api('/off/search',start?{q,start}:{q}); return {items:r.items||[],more:!!r.more};
+  const params={q,store:any?'':S.store}; if(start) params.start=start;
+  const r=await api('/off/search',params); return {items:r.items||[],more:!!r.more,store:r.store||null};
 }
-async function newSearch(q){ const r=await searchProducts(q,0); return {q,items:r.items,more:r.more,next:20,busy:false}; }
-const srcNote = l => onKroger() ? `at ${esc(S.store)}${l?' · '+esc(locLabel(l)):''}` : `for ${esc(S.store)} from Open Food Facts (photos and nutrition; no prices)`;
+async function newSearch(q){ const r=await searchProducts(q,0); return {q,items:r.items,more:r.more,next:20,busy:false,store:r.store||null,any:false}; }
+// Store-specific results ran out: keep going with products from any store, listed below.
+function anyStore(st, redraw){ st.any=true; st.next=0; st.more=true; loadMore(st,redraw); }
+const storeTag = x => x.source==='off' ? (x.store?`<span class="stag">${esc(x.store)}</span>`:'<span class="stag any">Any store</span>') : `<span class="stag">${esc(S.store)}</span>`;
+const fmtDate = d => { if(!d) return ''; const x=new Date(String(d).slice(0,10)+'T12:00:00'); return x.toLocaleDateString('en-US',{month:'short',day:'numeric',...(x.getFullYear()!==new Date().getFullYear()?{year:'numeric'}:{})}); };
+const ratingLine = x => x.rating ? `<span class="sub"><span class="stars">★</span> ${Number(x.rating).toFixed(1)} (${x.reviews||0}${x.ratingSource&&x.source==='off'?' on '+esc(x.ratingSource):''})</span>` : (x.source==='off'?'<span class="sub">No ratings yet</span>':'');
+const priceNote = x => x.source!=='off' ? '' : x.price!=null ? `<span class="sub">Reported ${esc(fmtDate(x.priceDate))}</span>` : x.store ? '<span class="sub">No price reported yet</span>' : '';
+const srcNote = (l,st) => onKroger() ? `Products at ${esc(S.store)}${l?' · '+esc(locLabel(l)):''}`
+  : st&&!st.store ? `Open Food Facts doesn’t track ${esc(S.store)} yet, so these are from any store (no prices)`
+  : `Only ${esc(S.store)} products, from Open Food Facts. Prices are shopper-reported${st&&st.any?'; other stores are listed after':''}`;
 async function loadMore(st, redraw){
   if(st.busy||!st.more) return; st.busy=true; redraw();
-  try{ const r=await searchProducts(st.q,st.next); st.next+=20;
+  try{ const r=await searchProducts(st.q,st.next,st.any); st.next+=20;
     const seen=new Set(st.items.map(x=>String(x.productId))), add=r.items.filter(x=>!seen.has(String(x.productId)));
     st.items.push(...add); st.more=r.more&&st.next<(onKroger()?250:980)&&(add.length>0||!onKroger());
   }catch(e){ toast(e.message); }
   st.busy=false; redraw();
 }
-const moreBtn=(st,act)=>st.more?`<div class="btnrow"><button class="pill p-soft" data-act="${act}" ${st.busy?'disabled':''}>${st.busy?'Loading…':'Load more'}</button></div>`:'';
+const moreBtn=(st,act)=>st.more?`<div class="btnrow"><button class="pill p-soft" data-act="${act}" ${st.busy?'disabled':''}>${st.busy?'Loading…':'Load more'}</button></div>`
+  : (!onKroger()&&st.store&&!st.any?`<div class="btnrow"><button class="pill p-soft" data-act="${act}any">Show products from any store</button></div>`:'');
 let VMORE=null, FMORE=null, CMORE=null;
 let VR=[], VREDRAW=null, FR=[], FREDRAW=null, favQ='', DP=null;
 function addProductToList(c, x){
@@ -716,9 +729,9 @@ function addProductToList(c, x){
 const NUT=['Calories','Total Fat','Saturated Fat','Trans Fat','Cholesterol','Sodium','Total Carbohydrate','Dietary Fiber','Sugar','Total Sugars','Added Sugars','Protein','Vitamin D','Calcium','Iron','Potassium'];
 const titleCase=t=>String(t||'').toLowerCase().replace(/\b\w/g,m=>m.toUpperCase());
 // Product details: rating, price, stock, aisle, nutrition, every photo.
-async function productSheet(x, k){
+async function productSheet(x, k, opts={}){
   const c=S.cat[k]; if(!c) return;
-  DP={x,k,d:null,err:''};
+  DP={x,k,d:null,err:'',back:opts.back||null};
   const draw=()=>{
     const d=DP.d, p=d||x, fv=isFav(c.name,x.productId), loc=curLoc();
     const imgs=d&&d.images&&d.images.length?d.images.map(i=>i.url):(x.imageUrl?[imgSrc(x.imageUrl)]:[]);
@@ -734,31 +747,33 @@ async function productSheet(x, k){
     const r=p.rating, full=r?Math.round(r):0;
     DP.seq=openSheet(`<button class="pill p-soft" data-act="dback" style="min-height:40px;padding:0 14px">‹ ${esc(c.name)} options</button>
      ${imgs.length?`<div class="gal">${imgs.map(u=>`<img src="${esc(u)}" alt="" loading="lazy" onerror="this.remove()">`).join('')}</div>`:`<div style="width:120px;margin:10px 0">${thumb(x.name,c.cat,'')}</div>`}
-     ${p.brand?`<div class="brand" style="font-size:12.5px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:.03em">${esc(p.brand)}</div>`:''}
+     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${storeTag(d||x)}${p.brand?`<span class="brand" style="font-size:12.5px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:.03em">${esc(p.brand)}</span>`:''}</div>
      <h3 style="font-size:22px;margin-top:2px">${esc(p.name)}</h3>
      <div class="note">${esc([p.size,d&&d.netWeight&&!String(p.size).includes(d.netWeight)?'net '+d.netWeight:''].filter(Boolean).join(' · '))}</div>
-     <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-top:8px">${priceHTML(p)||`<span class="note">${/^off:/.test(x.productId)?'Prices aren’t available for '+esc(S.store):'No price at this store'}</span>`}${d&&d.promoEnds?`<span class="note">Sale ends ${esc(fmtD(d.promoEnds))}</span>`:''}</div>
-     ${r?`<div style="margin-top:6px"><span class="stars" aria-hidden="true">${'★'.repeat(full)}${'☆'.repeat(5-full)}</span> <b>${r.toFixed(1)}</b> <span class="note">· ${p.reviews||0} review${p.reviews===1?'':'s'}</span></div>`:''}
+     <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-top:8px">${priceHTML(p)||`<span class="note">${/^off:/.test(x.productId)?(d&&d.store?'No '+esc(d.store)+' price reported yet':!d&&!DP.err?'Checking prices…':'No price for '+esc(S.store)):'No price at this store'}</span>`}${d&&d.promoEnds?`<span class="note">Sale ends ${esc(fmtD(d.promoEnds))}</span>`:''}</div>
+     ${d&&d.source==='off'&&d.priceDate?`<div class="note">Shopper-reported at ${esc(d.priceStore||d.store)}${d.priceCity?' '+esc(d.priceCity):''} on ${esc(fmtDate(d.priceDate))}${d.pricePer?' (per '+esc(String(d.pricePer).toLowerCase())+')':''}</div>`:''}
+     ${d&&d.otherPrices&&d.otherPrices.length?`<div class="note">Elsewhere: ${d.otherPrices.map(o=>`${esc(money(o.promo||o.price))} at ${esc(o.priceStore)}${o.priceCity?' '+esc(o.priceCity):''} (${esc(fmtDate(o.priceDate))})`).join(' · ')}</div>`:''}
+     ${r?`<div style="margin-top:6px"><span class="stars" aria-hidden="true">${'★'.repeat(full)}${'☆'.repeat(5-full)}</span> <b>${r.toFixed(1)}</b> <span class="note">· ${p.reviews||0} review${p.reviews===1?'':'s'}${p.ratingSource&&p.source==='off'?' from '+esc(p.ratingSource)+' shoppers (same product)':''}</span></div>`:(d&&d.source==='off'?'<div class="note" style="margin-top:6px">No ratings yet for this product</div>':'')}
      ${chips.length?`<div class="dchips">${chips.join('')}</div>`:''}
      ${fl.length?`<div class="note">Available: ${esc(fl.join(' · '))}${loc?' at '+esc(locLabel(loc)):''}</div>`:''}${d&&d.stores&&d.stores.length?`<div class="note">Seen at: ${esc(d.stores.join(', '))}</div>`:''}
      ${!d&&!DP.err?'<div class="skel" style="height:120px;margin-top:12px"></div>':''}${DP.err?`<div class="err">${esc(DP.err)}</div>`:''}
-     <div class="btnrow"><button class="pill p-tom" data-act="dadd">+ Add to list</button><button class="pill p-soft" data-act="dfav" aria-pressed="${fv}">${starIcon(fv)} ${fv?'Remove favorite':'Make favorite'}</button></div>
+     <div class="btnrow"><button class="pill p-tom" data-act="dadd">${onList(c.name)?'Use this product':'+ Add to list'}</button><button class="pill p-soft" data-act="dfav" aria-pressed="${fv}">${starIcon(fv)} ${fv?'Remove favorite':'Make favorite'}</button></div>
      ${n&&(nut.length||n.ingredients)?`<div class="card" style="margin-top:14px"><h3 style="font-size:18px">Nutrition</h3><div class="note">${esc([n.servingSize?'Serving '+n.servingSize:'',n.servings?(/about/i.test(n.servings)?'about '+parseFloat(n.servings):n.servings)+' servings':''].filter(Boolean).join(' · '))}</div>
-       ${nut.length?`<table class="ntab">${nut.map(z=>`<tr><td>${esc(z.name)}</td><td>${esc(z.quantity)}${esc(z.unit&&z.unit!=='cal'?' '+z.unit:'')}${z.dv!=null?` · ${esc(z.dv)}%`:''}</td></tr>`).join('')}</table>`:''}
+       ${n.dubious?'<div class="note">Some values entered in Open Food Facts look wrong, so they’re hidden.</div>':''}${nut.length?`<table class="ntab">${nut.map(z=>`<tr><td>${esc(z.name)}</td><td>${esc(z.quantity)}${esc(z.unit&&z.unit!=='cal'?' '+z.unit:'')}${z.dv!=null?` · ${esc(z.dv)}%`:''}</td></tr>`).join('')}</table>`:''}
        ${n.ingredients?`<details style="margin-top:8px"><summary style="font-weight:700;cursor:pointer;min-height:40px;display:flex;align-items:center">Ingredients</summary><p class="note" style="margin:0">${esc(n.ingredients)}</p></details>`:''}</div>`:''}
      ${d&&(d.countryOrigin||d.categories.length)?`<p class="note">${esc([d.categories.join(', '),d.countryOrigin?'Made in '+titleCase(d.countryOrigin):''].filter(Boolean).join(' · '))}</p>`:''}
      ${d&&d.pageUrl?`<a class="link" href="${esc(d.pageUrl)}" target="_blank" rel="noopener">View on ${d.source==='off'?'Open Food Facts':'Kroger.com'} ↗</a>`:''}`);
   };
   DP.redraw=()=>{ if(SEQ===DP.seq) draw(); };
   draw(); const mine=DP.seq, loc=curLoc();
-  try{ const d=/^off:/.test(x.productId)?await api('/off/product',{code:x.productId}):await api('/product',{id:x.productId,locationId:loc?loc.locationId:''}); if(SEQ!==mine||!DP||DP.x!==x) return; DP.d=d; draw(); }
+  try{ const d=/^off:/.test(x.productId)?await api('/off/product',{code:x.productId,store:S.store}):await api('/product',{id:x.productId,locationId:loc?loc.locationId:''}); if(SEQ!==mine||!DP||DP.x!==x) return; DP.d=d; draw(); }
   catch(e){ if(SEQ!==mine||!DP||DP.x!==x) return; DP.err=e.message; draw(); }
 }
 // Catalog: browse Kroger for an item and star favorites. Doesn't change what's picked on the list.
 async function favSheet(k, query){
   const c=S.cat[k]; if(!c) return;
   query=query||searchQuery(c.name,c.note); favQ=query;
-  const head=l=>`<h3>Choose ${esc(c.name)}</h3><div class="note">Products ${srcNote(l)}. Tap a product for details, or + Add to list. Tap ☆ to keep it as a favorite: favorites stay on top, and your top one is used when you add ${esc(c.name)}.</div>
+  const head=(l,st)=>`<h3>Choose ${esc(c.name)}</h3><div class="note">${srcNote(l,st)}. Tap a product for details, or + Add to list. Tap ☆ to keep it as a favorite: favorites stay on top, and your top one is used when you add ${esc(c.name)}.</div>
    <form id="ff" style="display:flex;gap:8px;margin-top:12px"><input class="search" id="fq" value="${esc(query)}" aria-label="Search products"><button class="pill p-green" aria-label="Search">${IC.search}</button></form>`;
   const bind=()=>{ const f=$('#ff'); if(f) f.onsubmit=e=>{e.preventDefault(); favSheet(k,$('#fq').value.trim()||c.name);} };
   let cur=openSheet(head(curLoc())+`<div class="vgrid">${'<div class="skel"></div>'.repeat(4)}</div>`); const mine=cur;
@@ -772,22 +787,22 @@ async function favSheet(k, query){
       const favCards=favs.map(f=>fresh.get(String(f.id))||{productId:f.id,upc:f.upc,name:f.name,size:f.size,brand:f.brand,price:f.price,promo:f.promo,imageUrl:f.image});
       const rest=items.filter(x=>!favs.some(f=>String(f.id)===String(x.productId)));
       FR=favCards.concat(rest);
-      const card=(x,i)=>{ const fv=favs.some(f=>String(f.id)===String(x.productId)); return `<div class="v ${fv?'on':''}"><button class="vb" data-act="pdetail" data-k="${esc(k)}" data-i="${i}" aria-label="Details for ${esc(x.name)}">${thumb(x.name,c.cat,imgSrc(x.imageUrl))}${x.brand?`<span class="brand">${esc(x.brand)}</span>`:''}<span class="nm">${esc(x.name)}</span>${x.size?`<span class="sub">${esc(x.size)}</span>`:''}${priceHTML(x)}${x.rating?`<span class="sub"><span class="stars">★</span> ${x.rating.toFixed(1)} (${x.reviews||0})</span>`:''}</button><button class="plus vadd" data-act="cadd" data-k="${esc(k)}" data-i="${i}" aria-label="Add ${esc(x.name)} to your list">${onList(c.name)&&choiceOf({name:c.name})&&String(choiceOf({name:c.name}).id)===String(x.productId)?'✓ On list':'+ Add to list'}</button><button class="fav" data-act="cfav" data-k="${esc(k)}" data-i="${i}" aria-pressed="${fv}" aria-label="${fv?'Remove from':'Save to'} favorites">${starIcon(fv)}</button></div>`; };
-      cur=openSheet(head(loc)
+      const card=(x,i)=>{ const fv=favs.some(f=>String(f.id)===String(x.productId)); return `<div class="v ${fv?'on':''}"><button class="vb" data-act="pdetail" data-k="${esc(k)}" data-i="${i}" aria-label="Details for ${esc(x.name)}">${thumb(x.name,c.cat,imgSrc(x.imageUrl))}${storeTag(x)}${x.brand?`<span class="brand">${esc(x.brand)}</span>`:''}<span class="nm">${esc(x.name)}</span>${x.size?`<span class="sub">${esc(x.size)}</span>`:''}${priceHTML(x)}${priceNote(x)}${ratingLine(x)}</button><button class="plus vadd" data-act="cadd" data-k="${esc(k)}" data-i="${i}" aria-label="Add ${esc(x.name)} to your list">${onList(c.name)&&choiceOf({name:c.name})&&String(choiceOf({name:c.name}).id)===String(x.productId)?'✓ On list':'+ Add to list'}</button><button class="fav" data-act="cfav" data-k="${esc(k)}" data-i="${i}" aria-pressed="${fv}" aria-label="${fv?'Remove from':'Save to'} favorites">${starIcon(fv)}</button></div>`; };
+      cur=openSheet(head(loc,st)
         +(favCards.length?`<h4>★ Your favorites</h4><div class="vgrid">${favCards.map((x,i)=>card(x,i)).join('')}</div>${rest.length?`<h4>More at ${esc(S.store)}</h4>`:''}`:'')
-        +(rest.length?`<div class="vgrid">${rest.map((x,j)=>card(x,favCards.length+j)).join('')}</div>`:(favCards.length?'':`<div class="err">Nothing came up at ${esc(S.store)}. Try a simpler search.</div>`))
+        +(rest.length?`<div class="vgrid">${rest.map((x,j)=>card(x,favCards.length+j)).join('')}</div>`:(favCards.length?'':`<div class="err">${onKroger()||!st.store||st.any?`Nothing came up at ${esc(S.store)}. Try a simpler search.`:`No ${esc(S.store)} products found for that search in Open Food Facts yet.`}</div>`))
         +moreBtn(st,'fmore')
         +`<div class="btnrow"><button class="pill p-green" data-act="close">Done</button><button class="pill p-soft" data-act="catdel" data-k="${esc(k)}" style="color:var(--tomato)">Remove from Catalog</button></div>`);
       bind();
     };
     draw();
     FREDRAW=()=>{ if(SEQ===cur) draw(); };
-    FMORE=()=>loadMore(st,FREDRAW);
+    FMORE=any=>any?anyStore(st,FREDRAW):loadMore(st,FREDRAW);
   }catch(e){ if(SEQ!==mine) return; openSheet(head(curLoc())+`<div class="err">${esc(e.message)}</div>`); bind(); }
 }
 async function variantSheet(it, query){
   const ch=choiceOf(it); query = query || searchQuery(it.name,it.note);
-  const head=l=>`<h3>Choose ${esc(it.name)}</h3><div class="note">Products ${srcNote(l)}</div>
+  const head=(l,st)=>`<h3>Choose ${esc(it.name)}</h3><div class="note">${srcNote(l,st)}</div>
    <form id="vf" style="display:flex;gap:8px;margin-top:12px"><input class="search" id="vq" value="${esc(query)}" aria-label="Search products"><button class="pill p-green" aria-label="Search">${IC.search}</button></form>`;
   const bind=()=>{ const f=$('#vf'); if(f) f.onsubmit=e=>{e.preventDefault(); variantSheet(it,$('#vq').value.trim()||it.name);} };
   const mine=openSheet(head(curLoc())+`<div class="vgrid">${'<div class="skel"></div>'.repeat(4)}</div>`);
@@ -802,17 +817,17 @@ async function variantSheet(it, query){
       const favCards=favs.map(f=>fresh.get(String(f.id))||{productId:f.id,upc:f.upc,name:f.name,size:f.size,brand:f.brand,price:f.price,promo:f.promo,imageUrl:f.image});
       const rest=items.filter(x=>!favs.some(f=>String(f.id)===String(x.productId)));
       VR=favCards.concat(rest);
-      const card=(x,i)=>{ const fv=isFav(it.name,x.productId); return `<div class="v ${sel&&String(sel.id)===String(x.productId)?'on':''}"><button class="vb" data-act="pick" data-id="${it.id}" data-i="${i}">${thumb(x.name,it.cat,imgSrc(x.imageUrl))}${x.brand?`<span class="brand">${esc(x.brand)}</span>`:''}<span class="nm">${esc(x.name)}</span>${x.size?`<span class="sub">${esc(x.size)}</span>`:''}${priceHTML(x)}</button><button class="fav" data-act="fav" data-id="${it.id}" data-i="${i}" aria-pressed="${fv}" aria-label="${fv?'Remove from':'Save to'} ${esc(it.name)} favorites">${starIcon(fv)}</button></div>`; };
-      cur=openSheet(head(loc)
-        +(favCards.length?`<h4>★ Your ${esc(it.name)} favorites</h4><div class="vgrid">${favCards.map((x,i)=>card(x,i)).join('')}</div>${rest.length?`<h4>More at ${esc(S.store)}</h4>`:''}`:(rest.length?'<p class="note" style="margin-top:10px">Tap ☆ to save favorites. They stay at the top, and your favorite is picked automatically when you add this item.</p>':''))
-        +(rest.length?`<div class="vgrid">${rest.map((x,j)=>card(x,favCards.length+j)).join('')}</div>`:(favCards.length?'':`<div class="err">Nothing came up at ${esc(S.store)}. Try a simpler search.</div>`))
+      const card=(x,i)=>{ const fv=isFav(it.name,x.productId); return `<div class="v ${sel&&String(sel.id)===String(x.productId)?'on':''}"><button class="vb" data-act="vdetail" data-id="${it.id}" data-i="${i}" aria-label="Details for ${esc(x.name)}">${thumb(x.name,it.cat,imgSrc(x.imageUrl))}${storeTag(x)}${x.brand?`<span class="brand">${esc(x.brand)}</span>`:''}<span class="nm">${esc(x.name)}</span>${x.size?`<span class="sub">${esc(x.size)}</span>`:''}${priceHTML(x)}${priceNote(x)}${ratingLine(x)}</button><button class="plus vadd" data-act="pick" data-id="${it.id}" data-i="${i}">${sel&&String(sel.id)===String(x.productId)?'✓ Chosen':'Choose'}</button><button class="fav" data-act="fav" data-id="${it.id}" data-i="${i}" aria-pressed="${fv}" aria-label="${fv?'Remove from':'Save to'} ${esc(it.name)} favorites">${starIcon(fv)}</button></div>`; };
+      cur=openSheet(head(loc,st)
+        +(favCards.length?`<h4>★ Your ${esc(it.name)} favorites</h4><div class="vgrid">${favCards.map((x,i)=>card(x,i)).join('')}</div>${rest.length?`<h4>More at ${esc(S.store)}</h4>`:''}`:(rest.length?'<p class="note" style="margin-top:10px">Tap a product for price and details, or Choose. Tap ☆ to save favorites: they stay at the top and are picked automatically when you add this item.</p>':''))
+        +(rest.length?`<div class="vgrid">${rest.map((x,j)=>card(x,favCards.length+j)).join('')}</div>`:(favCards.length?'':`<div class="err">${onKroger()||!st.store||st.any?`Nothing came up at ${esc(S.store)}. Try a simpler search.`:`No ${esc(S.store)} products found for that search in Open Food Facts yet.`}</div>`))
         +moreBtn(st,'vmore')
         +(c&&c.choices&&c.choices[S.store]&&!favs.length?`<div class="btnrow"><button class="pill p-soft" data-act="unpick" data-id="${it.id}">Clear my pick</button></div>`:''));
       bind();
     };
     draw();
     VREDRAW=()=>{ if(SEQ===cur) draw(); };
-    VMORE=()=>loadMore(st,VREDRAW);
+    VMORE=any=>any?anyStore(st,VREDRAW):loadMore(st,VREDRAW);
   }catch(e){ if(SEQ!==mine) return; openSheet(head(curLoc())+`<div class="err">${esc(e.message)}</div>`); bind(); }
 }
 function storeList(){ const b=(S.stores&&S.stores.length?S.stores:STORES0); return b.includes(S.store)?b:[S.store,...b]; }
@@ -898,12 +913,13 @@ document.addEventListener('click',e=>{
   else if(a==='refreshideas'){ ideaSeed=(ideaSeed+1)*7919%100003||1; ideaN=8; renderIdeas(); toast('Fresh ideas'); }
   else if(a==='moreusual'){ usualN+=8; renderIdeas(); }
   else if(a==='favsheet') favSheet(b.dataset.k);
-  else if(a==='vmore'){ if(VMORE) VMORE(); }
-  else if(a==='fmore'){ if(FMORE) FMORE(); }
-  else if(a==='cmore'){ if(CMORE) CMORE.run(); }
+  else if(a==='vmore'||a==='vmoreany'){ if(VMORE) VMORE(a==='vmoreany'); }
+  else if(a==='fmore'||a==='fmoreany'){ if(FMORE) FMORE(a==='fmoreany'); }
+  else if(a==='cmore'||a==='cmoreany'){ if(CMORE) CMORE.run(a==='cmoreany'); }
   else if(a==='crclose'){ CR=null; crState=''; crBusy=false; cq=''; renderCatalog(); }
+  else if(a==='vdetail'&&it){ const x=VR[+b.dataset.i]; if(x){ ensureCat(it); const q=$('#vq')?$('#vq').value.trim():''; productSheet(x,key(it.name),{back:()=>variantSheet(it,q||undefined)}); } }
   else if(a==='pdetail'){ const x=FR[+b.dataset.i]; if(x) productSheet(x,b.dataset.k); }
-  else if(a==='dback'){ if(DP) favSheet(DP.k,favQ); }
+  else if(a==='dback'){ if(DP) DP.back?DP.back():favSheet(DP.k,favQ); }
   else if(a==='dadd'){ const c=DP&&S.cat[DP.k]; if(c) addProductToList(c,DP.x); }
   else if(a==='dfav'){ const c=DP&&S.cat[DP.k]; if(!c) return; const on=toggleFav(c,pickOf(DP.x),false); save(); if(tab==='catalog') renderCatalog(); DP.redraw(); toast(on?`★ Saved to ${c.name} favorites`:`Removed from ${c.name} favorites`); }
   else if(a==='cadd'){ const x=FR[+b.dataset.i], c=S.cat[b.dataset.k]; if(!x||!c) return; addProductToList(c,x); }

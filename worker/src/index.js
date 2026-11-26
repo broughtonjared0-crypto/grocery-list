@@ -72,8 +72,8 @@ export default {
         case '/stores': return await stores(url, env, ctx, allowed);
         case '/search': return await search(url, env, ctx, allowed);
         case '/product': return await product(url, env, ctx, allowed);
-        case '/off/search': return await offSearch(url, ctx, allowed);
-        case '/off/product': return await offProduct(url, ctx, allowed);
+        case '/off/search': return await offSearch(url, env, ctx, allowed);
+        case '/off/product': return await offProduct(url, env, ctx, allowed);
         case '/img': return await image(url);
         default: return json({ error: 'Not found' }, 404, allowed);
       }
@@ -188,48 +188,104 @@ async function offFetch(u) {
   if (!r.ok) throw new HttpError(502, `Open Food Facts answered ${r.status}`);
   return r.json();
 }
-const offBrand = b => (Array.isArray(b) ? b : String(b || '').split(',')).map(x => String(x).replace(/^[a-z]{2}:/, '').trim()).filter(Boolean)[0] || '';
+const offBrand = b => { const x = (Array.isArray(b) ? b : String(b || '').split(',')).map(x => String(x).replace(/^[a-z]{2}:/, '').trim()).filter(Boolean)[0] || '';
+  return /^[a-z0-9]+(-[a-z0-9]+)+$/.test(x) ? x.split('-').map(w => w[0].toUpperCase() + w.slice(1)).join(' ') : x; };
 const offProxied = (origin, u) => u ? `${origin}/img?u=${encodeURIComponent(u)}` : null;
 
-async function offSearch(url, ctx, allowed) {
+// Stores Open Food Facts knows well enough to filter by. [tag in Open Food Facts, word in Open Prices store names, display name]
+const OFF_STORES = { costco: ['costco', 'costco', 'Costco'], aldi: ['aldi', 'aldi', 'ALDI'], target: ['target', 'target', 'Target'], walmart: ['walmart', 'walmart', 'Walmart'],
+  meijer: ['meijer', 'meijer', 'Meijer'], publix: ['publix', 'publix', 'Publix'], walgreens: ['walgreens', 'walgreens', 'Walgreens'], 'whole foods': ['whole foods', 'whole foods', 'Whole Foods'] };
+const storeInfo = name => { const e = OFF_STORES[String(name || '').toLowerCase().replace(/\s+market$/, '').trim()]; return e ? { tag: e[0], kw: e[1], label: e[2] } : null; };
+
+// Shopper-reported prices (Open Prices, a sister project of Open Food Facts). Newest USD price per product at that store.
+async function storePrices(codes, kw) {
+  if (!codes.length) return {};
+  const u = new URL('https://prices.openfoodfacts.org/api/v1/prices');
+  u.searchParams.set('product_code__in', codes.join(','));
+  u.searchParams.set('currency', 'USD');
+  u.searchParams.set('size', '100');
+  u.searchParams.set('order_by', '-date');
+  let r; try { r = await offFetch(u); } catch { return {}; }
+  const out = {};
+  for (const p of r.items || []) {
+    const loc = p.location || {};
+    if (p.currency !== 'USD' || out[p.product_code]) continue;
+    if (kw && !String(loc.osm_name || '').toLowerCase().includes(kw)) continue;
+    out[p.product_code] = priceOf(p);
+  }
+  return out;
+}
+function priceOf(p) {
+  const loc = p.location || {}, was = num(p.price_without_discount), now = num(p.price);
+  return { price: p.price_is_discounted && was > now ? was : now, promo: p.price_is_discounted && was > now ? now : null,
+    priceDate: p.date || null, priceStore: loc.osm_name || '', priceCity: loc.osm_address_city || '', pricePer: p.price_per || null };
+}
+
+// Kroger product IDs are the barcode without its check digit, padded to 13 digits.
+const krogerId = code => { const d = String(code || '').replace(/\D/g, ''); return d.length >= 12 ? d.slice(0, -1).padStart(13, '0').slice(-13) : null; };
+// Shopper ratings for products from other stores, borrowed from Kroger when it sells the same barcode.
+async function krogerRatings(env, ctx, codes) {
+  const ids = [...new Set(codes.map(krogerId).filter(Boolean))].slice(0, 50);
+  if (!ids.length || !env.KROGER_CLIENT_ID) return {};
+  try {
+    const r = await kroger(env, ctx, '/products', { 'filter.productId': ids.join(','), 'filter.limit': '50' });
+    const out = {};
+    for (const p of r.data || []) {
+      const rr = p.ratingsAndReviews || {};
+      if (num(rr.averageOverallRating)) out[p.productId] = { rating: num(rr.averageOverallRating), reviews: num(rr.totalReviewCount) || 0, ratingSource: 'Kroger' };
+    }
+    return out;
+  } catch { return {}; }
+}
+
+async function offSearch(url, env, ctx, allowed) {
   const q = cleanTerm(url.searchParams.get('q'));
   if (q.length < 2) throw new HttpError(400, 'Type at least 2 letters to search');
+  const info = storeInfo(url.searchParams.get('store'));
   let start = parseInt(url.searchParams.get('start') || '0', 10);
   start = Math.min(980, Math.max(0, Number.isFinite(start) ? start : 0));
   const page = Math.floor(start / 20) + 1;
-  const data = await cached(`off2:${page}:${q.toLowerCase()}`, SEARCH_TTL, url, ctx, async () => {
+  const data = await cached(`off4:${info ? info.tag : '*'}:${page}:${q.toLowerCase()}`, SEARCH_TTL, url, ctx, async () => {
     const u = new URL('https://search.openfoodfacts.org/search');
-    u.searchParams.set('q', `${q.replace(/["\\]/g, ' ')} countries:"en:united-states"`);
+    u.searchParams.set('q', `${q.replace(/["\\]/g, ' ')}${info ? ` stores:"${info.tag}"` : ''} countries:"en:united-states"`);
     u.searchParams.set('langs', 'en');
     u.searchParams.set('sort_by', '-unique_scans_n');
     u.searchParams.set('page', String(page));
     u.searchParams.set('page_size', '20');
-    u.searchParams.set('fields', 'code,product_name,product_name_en,brands,quantity,image_front_small_url,image_front_url,nutriscore_grade');
+    u.searchParams.set('fields', 'code,product_name,product_name_en,brands,quantity,image_front_small_url,image_front_url,nutriscore_grade,stores');
     const r = await offFetch(u);
-    // Every page reports 20 slots so the app knows to offer "Load more"; incomplete entries are dropped.
     const hits = (r.hits || []).map(h => {
       const name = h.product_name_en || h.product_name || '';
       const img = h.image_front_small_url || h.image_front_url || null;
       return name && img ? { productId: 'off:' + h.code, upc: h.code, name, brand: offBrand(h.brands), size: h.quantity || '', price: null, promo: null,
-        image: offProxied(url.origin, img), imageUrl: img, rating: null, reviews: null, nutriscore: h.nutriscore_grade || null, source: 'off' } : null;
+        image: offProxied(url.origin, img), imageUrl: img, rating: null, reviews: null, nutriscore: h.nutriscore_grade || null, source: 'off',
+        store: info ? info.label : null } : null;
     }).filter(Boolean);
-    return { items: hits, more: page < (r.page_count || 0) };
+    const [prices, ratings] = await Promise.all([info ? storePrices(hits.map(h => h.upc), info.kw) : {}, krogerRatings(env, ctx, hits.map(h => h.upc))]);
+    hits.forEach(h => { if (prices[h.upc]) Object.assign(h, prices[h.upc]); const rt = ratings[krogerId(h.upc)]; if (rt) Object.assign(h, rt); });
+    return { items: hits, more: page < (r.page_count || 0), store: info ? info.label : null };
   });
   return json(data, 200, allowed, SEARCH_TTL);
 }
 
 const OFF_NUT = [['energy-kcal', 'Calories', ''], ['fat', 'Total Fat', 'g'], ['saturated-fat', 'Saturated Fat', 'g'], ['trans-fat', 'Trans Fat', 'g'], ['cholesterol', 'Cholesterol', 'mg'],
   ['sodium', 'Sodium', 'mg'], ['carbohydrates', 'Total Carbohydrate', 'g'], ['fiber', 'Dietary Fiber', 'g'], ['sugars', 'Sugar', 'g'], ['added-sugars', 'Added Sugars', 'g'], ['proteins', 'Protein', 'g']];
-async function offProduct(url, ctx, allowed) {
+async function offProduct(url, env, ctx, allowed) {
   const code = (url.searchParams.get('code') || '').replace(/^off:/, '').trim();
   if (!/^\d{6,14}$/.test(code)) throw new HttpError(400, 'Bad product code');
-  const data = await cached(`offp1:${code}`, SEARCH_TTL, url, ctx, async () => {
+  const info = storeInfo(url.searchParams.get('store'));
+  const data = await cached(`offp4:${info ? info.tag : '*'}:${code}`, SEARCH_TTL, url, ctx, async () => {
     const r = await offFetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=code,product_name,product_name_en,brands,quantity,image_front_url,image_ingredients_url,image_nutrition_url,image_packaging_url,nutriments,serving_size,nutrition_data_per,ingredients_text_en,ingredients_text,nutriscore_grade,nova_group,categories,labels,stores,origins`);
     const p = r.product;
     if (!p) throw new HttpError(404, 'Open Food Facts has no details for that product');
     const n = p.nutriments || {}, per = n['energy-kcal_serving'] != null ? 'serving' : '100g';
+    // Shopper-entered data: hide values that can't be real (e.g. milligrams typed as grams).
+    const MAX100 = { cholesterol: 1.5, sodium: 8, 'trans-fat': 50 };
+    let dubious = false;
     const nutrients = OFF_NUT.map(([k, name, unit]) => {
       let v = n[`${k}_${per}`]; if (v == null || v === '') return null;
+      const v100 = Number(n[`${k}_100g`]);
+      if (k !== 'energy-kcal' && (v100 > (MAX100[k] ?? 100) || Number(v) > 1000)) { dubious = true; return null; }
       v = Number(v); if (!Number.isFinite(v)) return null;
       if (unit === 'mg') v = v * 1000;   // Open Food Facts stores these in grams
       return { name, quantity: Math.round(v * 10) / 10, unit, dv: null };
@@ -237,9 +293,23 @@ async function offProduct(url, ctx, allowed) {
     const imgs = [p.image_front_url, p.image_nutrition_url, p.image_ingredients_url, p.image_packaging_url].filter(Boolean)
       .map((u, i) => ({ perspective: ['front', 'nutrition', 'ingredients', 'packaging'][i], featured: i === 0, url: offProxied(url.origin, u) }));
     const img = p.image_front_url || null;
+    // Prices: newest at the selected store, plus a few recent ones from other stores for comparison.
+    let here = null; const elsewhere = [];
+    try {
+      const pr = await offFetch(`https://prices.openfoodfacts.org/api/v1/prices?product_code=${code}&currency=USD&size=30&order_by=-date`);
+      const seen = new Set();
+      for (const x of pr.items || []) {
+        if (x.currency !== 'USD') continue;
+        const nm = String((x.location || {}).osm_name || '');
+        if (info && !here && nm.toLowerCase().includes(info.kw)) { here = priceOf(x); continue; }
+        if (elsewhere.length < 3 && nm && !seen.has(nm.toLowerCase()) && !(info && nm.toLowerCase().includes(info.kw))) { seen.add(nm.toLowerCase()); elsewhere.push(priceOf(x)); }
+      }
+    } catch { /* prices are a bonus */ }
+    const rt = (await krogerRatings(env, ctx, [p.code]))[krogerId(p.code)] || {};
     return {
+      ...(here || {}), store: info ? info.label : null, otherPrices: elsewhere,
       productId: 'off:' + p.code, upc: p.code, name: p.product_name_en || p.product_name || '', brand: offBrand(p.brands), size: p.quantity || '',
-      price: null, promo: null, image: offProxied(url.origin, img), imageUrl: img, rating: null, reviews: null, source: 'off',
+      price: here ? here.price : null, promo: here ? here.promo : null, image: offProxied(url.origin, img), imageUrl: img, rating: rt.rating || null, reviews: rt.reviews || null, ratingSource: rt.ratingSource || null, source: 'off',
       nutriscore: p.nutriscore_grade && /^[a-e]$/.test(p.nutriscore_grade) ? p.nutriscore_grade : null,
       nova: p.nova_group || null,
       labels: String(p.labels || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 6),
@@ -250,7 +320,7 @@ async function offProduct(url, ctx, allowed) {
       pageUrl: `https://world.openfoodfacts.org/product/${p.code}`,
       nutrition: (nutrients.length || p.ingredients_text_en || p.ingredients_text) ? {
         servingSize: per === 'serving' ? (p.serving_size || '1 serving') : '100 g', servings: '',
-        ingredients: p.ingredients_text_en || p.ingredients_text || '', score: '', nutrients,
+        ingredients: p.ingredients_text_en || p.ingredients_text || '', score: '', nutrients, dubious,
       } : null,
     };
   });
@@ -308,10 +378,11 @@ async function syncRoute(req, url, env, allowed) {
 async function kroger(env, ctx, path, params) {
   const base = (env.KROGER_BASE || DEFAULT_BASE).replace(/\/$/, '');
   const u = `${base}${path}?${new URLSearchParams(params)}`;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const t = await getToken(env, ctx, attempt > 0);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt) await new Promise(r => setTimeout(r, 250 * attempt));
+    const t = await getToken(env, ctx, attempt === 1);
     const r = await fetch(u, { headers: { Authorization: `Bearer ${t}`, Accept: 'application/json' } });
-    if ((r.status === 401 || r.status === 403) && attempt === 0) { token = null; continue; }   // token revoked/expired early, or a passing Kroger hiccup: refresh once
+    if ((r.status === 401 || r.status === 403) && attempt < 2) { if (attempt === 0) token = null; continue; }   // token revoked/expired early, or a passing Kroger hiccup: refresh once
     if (r.status === 400) throw new HttpError(400, 'Kroger didn’t accept that search. Try simpler words.');
     if (r.status === 429) throw new HttpError(429, 'Kroger is busy (daily limit). Try again later.');
     if (!r.ok) throw new HttpError(502, `Kroger answered ${r.status}`);
